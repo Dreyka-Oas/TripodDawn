@@ -2,6 +2,8 @@ package oas.dreyka.tripoddawn.command;
 
 import oas.dreyka.tripoddawn.entity.MachineEntity;
 import oas.dreyka.tripoddawn.entity.TripodDawnEntities;
+import oas.dreyka.tripoddawn.entity.TripodEntity;
+import oas.dreyka.tripoddawn.entity.TripodVariant;
 import oas.dreyka.tripoddawn.invasion.InvasionSpawner;
 import oas.dreyka.tripoddawn.invasion.InvasionState;
 import oas.dreyka.tripoddawn.invasion.InvasionNight;
@@ -39,7 +41,16 @@ public final class TripodDawnCommands {
             "tripod", TripodDawnEntities.TRIPOD,
             "harvester", TripodDawnEntities.HARVESTER,
             "uberpod", TripodDawnEntities.UBERPOD,
-            "emperorpod", TripodDawnEntities.EMPERORPOD);
+            "emperorpod", TripodDawnEntities.EMPERORPOD,
+            "titan", TripodDawnEntities.TITAN);
+
+    /**
+     * The two builds that are not the line machine, since `tripod` on its own takes the one the
+     * calendar is currently sending and there is otherwise no way to ask for a given build.
+     */
+    private static final Map<String, TripodVariant> BUILDS = Map.of(
+            "scout", TripodVariant.SCOUT,
+            "heavy", TripodVariant.HEAVY);
 
     private static final int SPAWN_MIN = 32;
     private static final int SPAWN_MAX = 64;
@@ -63,7 +74,11 @@ public final class TripodDawnCommands {
         LiteralArgumentBuilder<CommandSourceStack> spawn = Commands.literal("spawn");
         for (Map.Entry<String, EntityType<? extends Mob>> entry : SUMMONABLE.entrySet()) {
             spawn.then(Commands.literal(entry.getKey())
-                    .executes(context -> summon(context, entry.getValue())));
+                    .executes(context -> summon(context, entry.getValue(), null)));
+        }
+        for (Map.Entry<String, TripodVariant> entry : BUILDS.entrySet()) {
+            spawn.then(Commands.literal(entry.getKey())
+                    .executes(context -> summon(context, TripodDawnEntities.TRIPOD, entry.getValue())));
         }
         root.then(spawn);
 
@@ -111,7 +126,8 @@ public final class TripodDawnCommands {
         return (int) day;
     }
 
-    private static int summon(CommandContext<CommandSourceStack> context, EntityType<? extends Mob> type) {
+    private static int summon(CommandContext<CommandSourceStack> context, EntityType<? extends Mob> type,
+                              TripodVariant build) {
         CommandSourceStack source = context.getSource();
         ServerPlayer player = source.getPlayer();
         if (player == null) {
@@ -123,6 +139,9 @@ public final class TripodDawnCommands {
         if (mob == null) {
             source.sendFailure(Component.translatable("commands.tripoddawn.spawn.no_room"));
             return 0;
+        }
+        if (build != null && mob instanceof TripodEntity tripod) {
+            tripod.setVariant(build);
         }
         // Half a minute of rise is the scene a night gives; someone typing this wants the machine.
         if (mob instanceof MachineEntity machine) {
