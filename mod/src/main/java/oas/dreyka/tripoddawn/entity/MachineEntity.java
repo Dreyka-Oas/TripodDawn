@@ -321,10 +321,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return;
         }
 
-        // A second and a quarter of aim, which is the warning a player gets.
+        // A second and a quarter of aim, which is the warning a player gets, and the hood lights up
+        // through it so the warning is seen as well as heard.
         if (++this.aimTicks == 1) {
             playSound(TripodDawnSounds.MACHINE_SHOOT, 8.0f, 1.0f);
         }
+        HeatRayProjectile.charge(server, this, this.aimTicks);
         if (this.aimTicks < 25) {
             return;
         }

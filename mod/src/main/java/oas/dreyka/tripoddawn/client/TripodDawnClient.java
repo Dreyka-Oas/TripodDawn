@@ -22,19 +22,22 @@ public class TripodDawnClient implements ClientModInitializer {
 
     /** Thrown up by a machine's rise: heavy, short-lived, and it lands. */
     private static final TripodDawnParticle.Settings DIRT =
-            new TripodDawnParticle.Settings(0.18f, 0.9f, 1.6f, 24, 20, true, false);
+            new TripodDawnParticle.Settings(0.18f, 0.9f, 1.6f, 10, 8, true, false);
 
-    /** Along the beam. It hangs where it was left and burns out fast. */
+    /**
+     * The sleeve of the beam, wide and soft. It is laid down every half block of flight, so the
+     * quads have to overlap: anything under a block across turns the ray back into a dotted line.
+     */
     private static final TripodDawnParticle.Settings BEAM =
-            new TripodDawnParticle.Settings(0.0f, 0.82f, 0.7f, 6, 5, false, true);
+            new TripodDawnParticle.Settings(0.0f, 0.86f, 1.6f, 5, 5, false, true);
 
-    /** At the muzzle, once per shot, bigger and brighter than the trail. */
-    private static final TripodDawnParticle.Settings MUZZLE =
-            new TripodDawnParticle.Settings(0.0f, 0.7f, 2.2f, 8, 6, false, true);
+    /** The white core, inside the sleeve. Small, so the sleeve reads as a glow around something. */
+    private static final TripodDawnParticle.Settings CORE =
+            new TripodDawnParticle.Settings(0.0f, 0.78f, 0.55f, 4, 4, false, true);
 
     /** The impact bloom. It drifts upward the way heat does. */
     private static final TripodDawnParticle.Settings IMPACT =
-            new TripodDawnParticle.Settings(-0.04f, 0.88f, 3.0f, 16, 12, false, true);
+            new TripodDawnParticle.Settings(-0.04f, 0.88f, 3.4f, 16, 12, false, true);
 
     @Override
     public void onInitializeClient() {
@@ -63,7 +66,7 @@ public class TripodDawnClient implements ClientModInitializer {
         registry.register(TripodDawnParticles.HEAT_RAY, sprites ->
                 new TripodDawnParticle.Provider(sprites, BEAM));
         registry.register(TripodDawnParticles.HEAT_RAY_BRIGHT, sprites ->
-                new TripodDawnParticle.Provider(sprites, MUZZLE));
+                new TripodDawnParticle.Provider(sprites, CORE));
         registry.register(TripodDawnParticles.BLAST, sprites ->
                 new TripodDawnParticle.Provider(sprites, IMPACT));
     }

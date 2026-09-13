@@ -3,6 +3,7 @@ package oas.dreyka.tripoddawn.entity;
 import oas.dreyka.tripoddawn.particle.TripodDawnParticles;
 import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
 
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -41,6 +42,23 @@ public class HeatRayProjectile extends Projectile {
      */
     private static final int MAX_AGE = 30;
 
+    /**
+     * How the beam is drawn.
+     *
+     * <p>It used to be two puffs dropped once per tick, and a tick of flight is three blocks, so what
+     * a player saw was a dotted line with two metres of night between the dots. The body is now laid
+     * down along the step rather than at the end of it, in two layers: a wide orange sleeve at
+     * {@link #BODY_SAMPLES} points, and a thin white core at the head where the heat actually is.
+     */
+    private static final int BODY_SAMPLES = 3;
+    private static final int BODY_PER_SAMPLE = 3;
+    private static final double BODY_SPREAD = 0.22;
+    private static final int CORE_COUNT = 4;
+    private static final double CORE_SPREAD = 0.08;
+
+    /** Where the hood glows while the machine is winding up, so the shot is seen before it lands. */
+    private static final int CHARGE_PERIOD = 4;
+
     private int pierced;
 
     public HeatRayProjectile(EntityType<? extends HeatRayProjectile> type, Level level) {
@@ -51,10 +69,33 @@ public class HeatRayProjectile extends Projectile {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
     }
 
+    /** The height the beam leaves from, which is the hood and not the feet twenty-four blocks below. */
+    public static double muzzleY(MachineEntity machine) {
+        return machine.getY() + machine.getBbHeight() * 0.85;
+    }
+
+    /**
+     * The hood lighting up through the second and a quarter of aim.
+     *
+     * <p>A beam that arrives with no warning is a death a player cannot read afterwards. The glow
+     * tightens as the shot gets closer: wide and dim at the start, a hard point by the end.
+     */
+    public static void charge(ServerLevel level, MachineEntity machine, int aimTicks) {
+        if (aimTicks % CHARGE_PERIOD != 0) {
+            return;
+        }
+        double closing = 1.0 - Math.min(1.0, aimTicks / 25.0);
+        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY,
+                machine.getX(), muzzleY(machine), machine.getZ(),
+                3, 0.2 + closing * 1.6, 0.2 + closing * 1.6, 0.2 + closing * 1.6, 0.0);
+        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT,
+                machine.getX(), muzzleY(machine), machine.getZ(), 2, 0.25, 0.25, 0.25, 0.0);
+    }
+
     /** Aims from the machine's hood rather than from its feet, twenty-four blocks lower. */
     public static void fire(ServerLevel level, MachineEntity machine, LivingEntity target) {
         HeatRayProjectile ray = new HeatRayProjectile(TripodDawnEntities.HEAT_RAY, level);
-        double y = machine.getY() + machine.getBbHeight() * 0.85;
+        double y = muzzleY(machine);
         ray.setPos(machine.getX(), y, machine.getZ());
         ray.setOwner(machine);
 
@@ -65,9 +106,18 @@ public class HeatRayProjectile extends Projectile {
         ray.shoot(aim.x, aim.y, aim.z, 3.0f, 0.0f);
 
         level.addFreshEntity(ray);
-        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT,
-                machine.getX(), y, machine.getZ(), 4, 0.4, 0.4, 0.4, 0.02);
+        muzzleFlash(level, machine, ray.getDeltaMovement().normalize());
         machine.playSound(TripodDawnSounds.HEAT_RAY, 10.0f, 1.0f);
+    }
+
+    /** The bloom at the barrel, thrown forward rather than sat on the hood. */
+    private static void muzzleFlash(ServerLevel level, MachineEntity machine, Vec3 forward) {
+        double x = machine.getX() + forward.x * 2.0;
+        double y = muzzleY(machine) + forward.y * 2.0;
+        double z = machine.getZ() + forward.z * 2.0;
+        TripodDawnParticles.send(level, TripodDawnParticles.BLAST, x, y, z, 3, 0.5, 0.5, 0.5, 0.0);
+        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT, x, y, z, 8, 0.7, 0.7, 0.7, 0.04);
+        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY, x, y, z, 10, 1.1, 1.1, 1.1, 0.06);
     }
 
     @Override
@@ -89,19 +139,32 @@ public class HeatRayProjectile extends Projectile {
             return;
         }
 
+        Vec3 from = this.position();
         Vec3 motion = this.getDeltaMovement();
-        this.setPos(this.getX() + motion.x, this.getY() + motion.y, this.getZ() + motion.z);
+        this.setPos(from.x + motion.x, from.y + motion.y, from.z + motion.z);
 
         if (this.level() instanceof ServerLevel server) {
-            TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY,
-                    this.getX(), this.getY(), this.getZ(), 2, 0.1, 0.1, 0.1, 0.0);
+            trail(server, from, motion);
         }
     }
 
-    /** Machines never shoot each other, for the same reason they never catch each other's fire. */
+    /** The beam, laid down along the three blocks the ray just crossed rather than at its head. */
+    private void trail(ServerLevel server, Vec3 from, Vec3 motion) {
+        for (int i = 0; i < BODY_SAMPLES; i++) {
+            double along = (i + 0.5) / BODY_SAMPLES;
+            TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY,
+                    from.x + motion.x * along, from.y + motion.y * along, from.z + motion.z * along,
+                    BODY_PER_SAMPLE, BODY_SPREAD, BODY_SPREAD, BODY_SPREAD, 0.0);
+        }
+        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY_BRIGHT,
+                this.getX(), this.getY(), this.getZ(),
+                CORE_COUNT, CORE_SPREAD, CORE_SPREAD, CORE_SPREAD, 0.0);
+    }
+
+    /** The invasion never shoots its own, for the same reason it never catches its own fire. */
     @Override
     protected boolean canHitEntity(Entity target) {
-        return !(target instanceof MachineEntity) && super.canHitEntity(target);
+        return !MachineEntity.invader(target) && super.canHitEntity(target);
     }
 
     @Override
@@ -113,6 +176,14 @@ public class HeatRayProjectile extends Projectile {
         Entity victim = hit.getEntity();
         victim.hurtServer(server, this.damageSources().onFire(), DIRECT_DAMAGE);
         victim.igniteForSeconds(8.0f);
+
+        // The beam goes through, so the hit has to read on the body rather than on the beam ending.
+        TripodDawnParticles.send(server, TripodDawnParticles.BLAST,
+                victim.getX(), victim.getY() + victim.getBbHeight() * 0.5, victim.getZ(),
+                2, 0.3, 0.3, 0.3, 0.0);
+        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY_BRIGHT,
+                victim.getX(), victim.getY() + victim.getBbHeight() * 0.5, victim.getZ(),
+                10, 0.4, 0.5, 0.4, 0.14);
 
         if (++this.pierced >= MAX_PIERCE) {
             this.discard();
@@ -134,14 +205,13 @@ public class HeatRayProjectile extends Projectile {
      * own: a server that has turned block damage off has said so once, for every mob.
      */
     private void splash(ServerLevel server) {
-        TripodDawnParticles.send(server, TripodDawnParticles.BLAST,
-                this.getX(), this.getY(), this.getZ(), 8, 1.2, 1.2, 1.2, 0.05);
+        impact(server);
 
         for (LivingEntity nearby : server.getEntitiesOfClass(LivingEntity.class,
                 new AABB(this.position(), this.position()).inflate(SPLASH_RADIUS))) {
             // Machines never catch their own fire, otherwise two of them in one street kill each
             // other before they reach anything a player built.
-            if (nearby == this.getOwner() || nearby instanceof MachineEntity) {
+            if (nearby == this.getOwner() || MachineEntity.invader(nearby)) {
                 continue;
             }
             nearby.hurtServer(server, this.damageSources().onFire(), SPLASH_DAMAGE);
@@ -150,6 +220,24 @@ public class HeatRayProjectile extends Projectile {
         server.explode(this.getOwner(), this.getX(), this.getY(), this.getZ(), 2.5f, true,
                 Level.ExplosionInteraction.MOB);
         server.gameEvent(GameEvent.EXPLODE, this.position(), GameEvent.Context.of(this));
+    }
+
+    /**
+     * The ground hit, in three layers so that it reads at sixty blocks as well as at ten: the white
+     * flash, the orange ball thrown back along the beam, and the smoke the vanilla explosion leaves.
+     */
+    private void impact(ServerLevel server) {
+        double x = this.getX();
+        double y = this.getY();
+        double z = this.getZ();
+        Vec3 back = this.getDeltaMovement().normalize().scale(-1.0);
+
+        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY_BRIGHT, x, y, z, 24, 0.5, 0.5, 0.5, 0.3);
+        TripodDawnParticles.send(server, TripodDawnParticles.BLAST, x, y, z, 10, 1.4, 1.4, 1.4, 0.06);
+        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY,
+                x + back.x, y + back.y, z + back.z, 20, 1.6, 1.6, 1.6, 0.18);
+        TripodDawnParticles.send(server, ParticleTypes.LAVA, x, y, z, 8, 0.6, 0.6, 0.6, 0.0);
+        TripodDawnParticles.send(server, ParticleTypes.LARGE_SMOKE, x, y + 0.5, z, 12, 1.0, 0.8, 1.0, 0.04);
     }
 
     @Override
