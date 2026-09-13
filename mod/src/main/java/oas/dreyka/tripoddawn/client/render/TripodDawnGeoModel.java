@@ -22,9 +22,17 @@ public class TripodDawnGeoModel<T extends GeoAnimatable> extends GeoModel<T> {
     private final Identifier animations;
 
     public TripodDawnGeoModel(String name) {
+        this(name, name);
+    }
+
+    /**
+     * For a creature cut from another one's skeleton: it carries its own bones and its own sheet,
+     * and it moves on the clips that were written for the machine it was cut from.
+     */
+    public TripodDawnGeoModel(String name, String animationName) {
         this.model = TripodDawnMod.id(name);
         this.texture = TripodDawnMod.id("textures/entity/" + name + ".png");
-        this.animations = TripodDawnMod.id(name);
+        this.animations = TripodDawnMod.id(animationName);
     }
 
     @Override

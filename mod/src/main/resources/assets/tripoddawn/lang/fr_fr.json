@@ -4,13 +4,16 @@
   "entity.tripoddawn.harvester": "Récolteur",
   "entity.tripoddawn.uberpod": "Uberpod",
   "entity.tripoddawn.emperorpod": "Emperorpod",
+  "entity.tripoddawn.titan": "Titan",
   "entity.tripoddawn.heat_ray": "Rayon ardent",
+  "entity.tripoddawn.machine_part": "Machine",
 
   "item.tripoddawn.martian_spawn_egg": "Œuf d'apparition de martien",
   "item.tripoddawn.tripod_spawn_egg": "Œuf d'apparition de tripode",
   "item.tripoddawn.harvester_spawn_egg": "Œuf d'apparition de récolteur",
   "item.tripoddawn.uberpod_spawn_egg": "Œuf d'apparition d'uberpod",
   "item.tripoddawn.emperorpod_spawn_egg": "Œuf d'apparition d'emperorpod",
+  "item.tripoddawn.titan_spawn_egg": "Œuf d'apparition de titan",
 
   "effect.tripoddawn.earthquake": "Secousse",
 

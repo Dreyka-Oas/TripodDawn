@@ -8,6 +8,7 @@ import oas.dreyka.tripoddawn.client.render.TripodDawnGeoModel;
 import oas.dreyka.tripoddawn.entity.EmperorpodEntity;
 import oas.dreyka.tripoddawn.entity.HarvesterEntity;
 import oas.dreyka.tripoddawn.entity.MartianEntity;
+import oas.dreyka.tripoddawn.entity.TitanEntity;
 import oas.dreyka.tripoddawn.entity.TripodDawnEntities;
 import oas.dreyka.tripoddawn.entity.TripodEntity;
 import oas.dreyka.tripoddawn.entity.UberpodEntity;
@@ -56,9 +57,15 @@ public class TripodDawnClient implements ClientModInitializer {
         // ground pose its animation file already carries.
         EntityRenderers.register(TripodDawnEntities.EMPERORPOD, context ->
                 new MachineEntityRenderer<EmperorpodEntity>(context, new TripodDawnGeoModel<>("emperorpod")));
+        // Cut from the walker, so it walks on the walker's clips and falls on the walker's wreck.
+        EntityRenderers.register(TripodDawnEntities.TITAN, context ->
+                new MachineEntityRenderer<TitanEntity>(context,
+                        new MachineGeoModel<>("titan", "tripod", "dead_tripod")));
 
-        // The beam itself is drawn by the particles it leaves; there is no model to put on it.
+        // The beam itself is drawn by the particles it leaves; there is no model to put on it. The
+        // slabs are drawn by the machine standing inside them.
         EntityRenderers.register(TripodDawnEntities.HEAT_RAY, NoopRenderer::new);
+        EntityRenderers.register(TripodDawnEntities.MACHINE_PART, NoopRenderer::new);
 
         ParticleFactoryRegistry registry = ParticleFactoryRegistry.getInstance();
         registry.register(TripodDawnParticles.DIRT_CLOUD, sprites ->

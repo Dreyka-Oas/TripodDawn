@@ -30,9 +30,49 @@ import net.minecraft.world.phys.Vec3;
  */
 public class HeatRayProjectile extends Projectile {
 
-    private static final float DIRECT_DAMAGE = 500.0f;
-    private static final float SPLASH_DAMAGE = 40.0f;
-    private static final double SPLASH_RADIUS = 3.5;
+    /**
+     * The two ways a machine shoots.
+     *
+     * <p>One weapon with one behaviour meant the same second and a quarter of warning whether the
+     * player was at arm's length or at the far end of a field, and the same certain death at the end
+     * of it. Distance decides now. Up close it snaps, which is fast enough to be frightening and weak
+     * enough to be survived in armour; from far off it winds all the way up, which is death, and the
+     * two seconds of hood glowing are the whole warning. Closing the distance is the answer to the
+     * one that kills, and that is the fight this mod did not have before.
+     */
+    public enum Mode {
+        QUICK(8, 25.0f, 8.0f, 2.5, 1.5f, 25),
+        CHARGED(40, 500.0f, 40.0f, 4.0, 3.0f, 100);
+
+        private final int aim;
+        private final float direct;
+        private final float splash;
+        private final double radius;
+        private final float blast;
+        private final int cooldown;
+
+        Mode(int aim, float direct, float splash, double radius, float blast, int cooldown) {
+            this.aim = aim;
+            this.direct = direct;
+            this.splash = splash;
+            this.radius = radius;
+            this.blast = blast;
+            this.cooldown = cooldown;
+        }
+
+        /** Ticks of wind-up, which is the warning a player gets. */
+        public int aim() {
+            return this.aim;
+        }
+
+        public int cooldown() {
+            return this.cooldown;
+        }
+    }
+
+    /** Beyond this a machine has the time to wind all the way up, and takes it. */
+    public static final double CHARGE_FROM = 36.0;
+
     private static final int MAX_PIERCE = 10;
 
     /**
@@ -60,6 +100,7 @@ public class HeatRayProjectile extends Projectile {
     private static final int CHARGE_PERIOD = 4;
 
     private int pierced;
+    private Mode mode = Mode.CHARGED;
 
     public HeatRayProjectile(EntityType<? extends HeatRayProjectile> type, Level level) {
         super(type, level);
@@ -69,33 +110,37 @@ public class HeatRayProjectile extends Projectile {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
     }
 
-    /** The height the beam leaves from, which is the hood and not the feet twenty-four blocks below. */
+    /** The height the beam leaves from, which is the hood and not the feet forty blocks below. */
     public static double muzzleY(MachineEntity machine) {
-        return machine.getY() + machine.getBbHeight() * 0.85;
+        return machine.getY() + machine.drawnHeight() * 0.92;
     }
 
     /**
-     * The hood lighting up through the second and a quarter of aim.
+     * The hood lighting up through the wind-up.
      *
      * <p>A beam that arrives with no warning is a death a player cannot read afterwards. The glow
      * tightens as the shot gets closer: wide and dim at the start, a hard point by the end.
      */
-    public static void charge(ServerLevel level, MachineEntity machine, int aimTicks) {
+    public static void charge(ServerLevel level, MachineEntity machine, Mode mode, int aimTicks) {
         if (aimTicks % CHARGE_PERIOD != 0) {
             return;
         }
-        double closing = 1.0 - Math.min(1.0, aimTicks / 25.0);
+        // A snap shot gathers nothing worth seeing, so it gets a flicker at the hood and the wide
+        // closing glow is kept for the one that kills: the two shots have to be told apart in the
+        // second a player has to decide whether to run or to close.
+        double closing = 1.0 - Math.min(1.0, (double) aimTicks / mode.aim);
+        double spread = mode == Mode.QUICK ? 0.3 : 0.2 + closing * 1.6;
         TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY,
-                machine.getX(), muzzleY(machine), machine.getZ(),
-                3, 0.2 + closing * 1.6, 0.2 + closing * 1.6, 0.2 + closing * 1.6, 0.0);
+                machine.getX(), muzzleY(machine), machine.getZ(), 3, spread, spread, spread, 0.0);
         TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT,
                 machine.getX(), muzzleY(machine), machine.getZ(), 2, 0.25, 0.25, 0.25, 0.0);
     }
 
     /** Aims from the machine's hood rather than from its feet, twenty-four blocks lower. */
-    public static void fire(ServerLevel level, MachineEntity machine, LivingEntity target) {
+    public static void fire(ServerLevel level, MachineEntity machine, LivingEntity target, Mode mode) {
         HeatRayProjectile ray = new HeatRayProjectile(TripodDawnEntities.HEAT_RAY, level);
         double y = muzzleY(machine);
+        ray.mode = mode;
         ray.setPos(machine.getX(), y, machine.getZ());
         ray.setOwner(machine);
 
@@ -107,7 +152,7 @@ public class HeatRayProjectile extends Projectile {
 
         level.addFreshEntity(ray);
         muzzleFlash(level, machine, ray.getDeltaMovement().normalize());
-        machine.playSound(TripodDawnSounds.HEAT_RAY, 10.0f, 1.0f);
+        machine.playSound(TripodDawnSounds.HEAT_RAY, 10.0f, mode == Mode.QUICK ? 1.35f : 0.9f);
     }
 
     /** The bloom at the barrel, thrown forward rather than sat on the hood. */
@@ -174,8 +219,8 @@ public class HeatRayProjectile extends Projectile {
             return;
         }
         Entity victim = hit.getEntity();
-        victim.hurtServer(server, this.damageSources().onFire(), DIRECT_DAMAGE);
-        victim.igniteForSeconds(8.0f);
+        victim.hurtServer(server, this.damageSources().onFire(), this.mode.direct);
+        victim.igniteForSeconds(this.mode == Mode.QUICK ? 3.0f : 8.0f);
 
         // The beam goes through, so the hit has to read on the body rather than on the beam ending.
         TripodDawnParticles.send(server, TripodDawnParticles.BLAST,
@@ -208,17 +253,17 @@ public class HeatRayProjectile extends Projectile {
         impact(server);
 
         for (LivingEntity nearby : server.getEntitiesOfClass(LivingEntity.class,
-                new AABB(this.position(), this.position()).inflate(SPLASH_RADIUS))) {
+                new AABB(this.position(), this.position()).inflate(this.mode.radius))) {
             // Machines never catch their own fire, otherwise two of them in one street kill each
             // other before they reach anything a player built.
             if (nearby == this.getOwner() || MachineEntity.invader(nearby)) {
                 continue;
             }
-            nearby.hurtServer(server, this.damageSources().onFire(), SPLASH_DAMAGE);
+            nearby.hurtServer(server, this.damageSources().onFire(), this.mode.splash);
         }
 
-        server.explode(this.getOwner(), this.getX(), this.getY(), this.getZ(), 2.5f, true,
-                Level.ExplosionInteraction.MOB);
+        server.explode(this.getOwner(), this.getX(), this.getY(), this.getZ(), this.mode.blast,
+                true, Level.ExplosionInteraction.MOB);
         server.gameEvent(GameEvent.EXPLODE, this.position(), GameEvent.Context.of(this));
     }
 
@@ -244,12 +289,14 @@ public class HeatRayProjectile extends Projectile {
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putInt("Pierced", this.pierced);
+        output.putString("Mode", this.mode.name());
     }
 
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         this.pierced = input.getIntOr("Pierced", 0);
+        this.mode = Mode.valueOf(input.getStringOr("Mode", Mode.CHARGED.name()));
     }
 
     @Override

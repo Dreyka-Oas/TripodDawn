@@ -37,6 +37,12 @@ public class HarvesterEntity extends MachineEntity {
         return "dead_harvester";
     }
 
+    /** Measured against a block ruler in game: the box it is registered at holds three fifths of it. */
+    @Override
+    public float modelHeight() {
+        return 40.0f;
+    }
+
     @Override
     protected int experience() {
         return 30;

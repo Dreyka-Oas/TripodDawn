@@ -11,11 +11,11 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
 /**
- * The five creatures and the one projectile.
+ * The six creatures, the projectile, and the slabs a machine is hit on.
  *
  * <p>The source mod registered eleven entity types for the same content: each machine carried a
  * separate species for its rise out of the ground and another for its wreck. Both are states of one
- * machine here, so the registry is down to five.
+ * machine here, and the three tripod builds are one species too, so the registry stays short.
  */
 public final class TripodDawnEntities {
     private TripodDawnEntities() {
@@ -26,7 +26,9 @@ public final class TripodDawnEntities {
     public static final ResourceKey<EntityType<?>> HARVESTER_KEY = key("harvester");
     public static final ResourceKey<EntityType<?>> UBERPOD_KEY = key("uberpod");
     public static final ResourceKey<EntityType<?>> EMPERORPOD_KEY = key("emperorpod");
+    public static final ResourceKey<EntityType<?>> TITAN_KEY = key("titan");
     public static final ResourceKey<EntityType<?>> HEAT_RAY_KEY = key("heat_ray");
+    public static final ResourceKey<EntityType<?>> MACHINE_PART_KEY = key("machine_part");
 
     public static final EntityType<MartianEntity> MARTIAN = Registry.register(
             BuiltInRegistries.ENTITY_TYPE,
@@ -74,6 +76,16 @@ public final class TripodDawnEntities {
                     .fireImmune()
                     .build(EMPERORPOD_KEY));
 
+    /** Registered at the walker's own size and grown by its scale attribute, like the builds. */
+    public static final EntityType<TitanEntity> TITAN = Registry.register(
+            BuiltInRegistries.ENTITY_TYPE,
+            TITAN_KEY,
+            EntityType.Builder.of(TitanEntity::new, MobCategory.MONSTER)
+                    .sized(3.5f, 24.0f)
+                    .clientTrackingRange(16)
+                    .fireImmune()
+                    .build(TITAN_KEY));
+
     public static final EntityType<HeatRayProjectile> HEAT_RAY = Registry.register(
             BuiltInRegistries.ENTITY_TYPE,
             HEAT_RAY_KEY,
@@ -85,12 +97,28 @@ public final class TripodDawnEntities {
                     .fireImmune()
                     .build(HEAT_RAY_KEY));
 
+    /**
+     * The slabs a machine is hit on. Tracked like anything else, because a player aims on their own
+     * client and a box nobody was told about cannot be shot at.
+     */
+    public static final EntityType<MachinePart> MACHINE_PART = Registry.register(
+            BuiltInRegistries.ENTITY_TYPE,
+            MACHINE_PART_KEY,
+            EntityType.Builder.<MachinePart>of(MachinePart::new, MobCategory.MISC)
+                    .sized(1.0f, 1.0f)
+                    .clientTrackingRange(6)
+                    .noSummon()
+                    .noSave()
+                    .fireImmune()
+                    .build(MACHINE_PART_KEY));
+
     public static void register() {
         FabricDefaultAttributeRegistry.register(MARTIAN, MartianEntity.createAttributes());
         FabricDefaultAttributeRegistry.register(TRIPOD, TripodEntity.createAttributes());
         FabricDefaultAttributeRegistry.register(HARVESTER, HarvesterEntity.createAttributes());
         FabricDefaultAttributeRegistry.register(UBERPOD, UberpodEntity.createAttributes());
         FabricDefaultAttributeRegistry.register(EMPERORPOD, EmperorpodEntity.createAttributes());
+        FabricDefaultAttributeRegistry.register(TITAN, TitanEntity.createAttributes());
         TripodDawnMod.LOGGER.debug("entity types registered");
     }
 

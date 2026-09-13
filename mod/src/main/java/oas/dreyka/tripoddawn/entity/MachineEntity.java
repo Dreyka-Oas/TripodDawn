@@ -103,10 +103,17 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private int aimTicks;
     private int shotCooldown;
     private int engineTicks;
+    private HeatRayProjectile.Mode mode = HeatRayProjectile.Mode.CHARGED;
+    private MachinePart[] parts;
 
     protected MachineEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
         this.xpReward = experience();
+        // A machine bigger than the size it is registered at says so through the scale attribute, and
+        // an attribute fires no change event for the value it was built with. Without this the box
+        // stays the registered one for good: a forty block titan that is twenty-four blocks tall to
+        // everything the server measures, its own hit slabs included.
+        refreshDimensions();
     }
 
     // ---- what each machine answers for itself ----
@@ -120,6 +127,32 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      */
     public String wreckPrefix() {
         return null;
+    }
+
+    /**
+     * The name its model, its animations and its texture are filed under while it is standing.
+     *
+     * <p>Null for a machine whose files are the ones the renderer was built with, which is every one
+     * of them but the tripod: that species carries three builds behind a single entity type.
+     */
+    public String modelName() {
+        return null;
+    }
+
+    /**
+     * How tall this machine is drawn, in blocks, before its scale is applied.
+     *
+     * <p>It is not the registered box, and the two are a long way apart: a walker is drawn at forty
+     * blocks and boxed at twenty-four. Growing the box to match would have the server walk the blocks
+     * inside forty blocks of empty sky every tick, for every machine standing, and would wedge one
+     * under any canopy tall enough to clear its hood. The box keeps colliding and pathing at the size
+     * that is cheap; the slabs a shot lands on and the height the ray leaves from are cut from this.
+     */
+    public abstract float modelHeight();
+
+    /** The same, at the size this machine actually stands. */
+    public float drawnHeight() {
+        return modelHeight() * getScale();
     }
 
     protected abstract int experience();
@@ -209,7 +242,8 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
 
     /** Anything the invasion brought with it. A machine neither aims at these nor burns them. */
     public static boolean invader(Entity entity) {
-        return entity instanceof MachineEntity || entity instanceof MartianEntity;
+        return entity instanceof MachineEntity || entity instanceof MartianEntity
+                || entity instanceof MachinePart;
     }
 
     /**
@@ -258,6 +292,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         if (!(this.level() instanceof ServerLevel server)) {
             return;
         }
+        tickParts(server);
 
         if (emerging()) {
             tickEmerge(server);
@@ -265,6 +300,63 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         }
         tickEngine();
         tickWeapon(server);
+    }
+
+    // ---- where a shot lands ----
+
+    /**
+     * The slabs a shot can land on.
+     *
+     * <p>Built here rather than at spawn because they are never saved: a machine that comes back with
+     * the world has to grow them again, and the tick after loading is the first moment it can.
+     */
+    private void tickParts(ServerLevel server) {
+        if (this.isDeadOrDying()) {
+            dropParts();
+            return;
+        }
+        // Rebuilt rather than only built, because a slab is an entity like any other and anything
+        // that clears entities takes them with it. A machine that kept the dead references would
+        // stand there unhittable, which reads as invulnerability rather than as a missing box.
+        if (this.parts == null || this.parts[0].isRemoved()) {
+            MachinePart.Zone[] zones = MachinePart.Zone.values();
+            this.parts = new MachinePart[zones.length];
+            for (int i = 0; i < zones.length; i++) {
+                this.parts[i] = new MachinePart(this, zones[i]);
+                server.addFreshEntity(this.parts[i]);
+            }
+            return;
+        }
+        for (MachinePart part : this.parts) {
+            part.follow();
+        }
+    }
+
+    private void dropParts() {
+        if (this.parts == null) {
+            return;
+        }
+        for (MachinePart part : this.parts) {
+            part.discard();
+        }
+        this.parts = null;
+    }
+
+    /**
+     * Nothing lands on the machine itself, only on its slabs.
+     *
+     * <p>Two boxes over the same metal would mean a shot worth double when it clips the outer one
+     * and normal when it clips the inner, decided by which the game happened to test first.
+     */
+    @Override
+    public boolean isPickable() {
+        return false;
+    }
+
+    @Override
+    public void remove(RemovalReason reason) {
+        dropParts();
+        super.remove(reason);
     }
 
     /** Held in place, silent apart from its own rise, and unable to walk out of the animation. */
@@ -326,19 +418,25 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return;
         }
 
-        // A second and a quarter of aim, which is the warning a player gets, and the hood lights up
-        // through it so the warning is seen as well as heard.
+        // Distance picks the shot, and it is picked once at the start of the wind-up rather than
+        // read again every tick: a player walking across the threshold mid-aim would otherwise turn
+        // a charged shot into a snap one halfway through, and the warning they had been reading
+        // would have been a lie.
         if (++this.aimTicks == 1) {
-            playSound(TripodDawnSounds.MACHINE_SHOOT, 8.0f, 1.0f);
+            this.mode = reach > HeatRayProjectile.CHARGE_FROM * HeatRayProjectile.CHARGE_FROM
+                    ? HeatRayProjectile.Mode.CHARGED
+                    : HeatRayProjectile.Mode.QUICK;
+            playSound(TripodDawnSounds.MACHINE_SHOOT, 8.0f,
+                    this.mode == HeatRayProjectile.Mode.QUICK ? 1.4f : 0.85f);
         }
-        HeatRayProjectile.charge(server, this, this.aimTicks);
-        if (this.aimTicks < 25) {
+        HeatRayProjectile.charge(server, this, this.mode, this.aimTicks);
+        if (this.aimTicks < this.mode.aim()) {
             return;
         }
 
-        HeatRayProjectile.fire(server, this, target);
+        HeatRayProjectile.fire(server, this, target, this.mode);
         this.aimTicks = 0;
-        this.shotCooldown = 60;
+        this.shotCooldown = this.mode.cooldown();
     }
 
     // ---- death, then the wreck ----

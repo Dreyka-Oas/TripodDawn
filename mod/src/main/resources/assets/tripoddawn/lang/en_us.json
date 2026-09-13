@@ -4,13 +4,16 @@
   "entity.tripoddawn.harvester": "Harvester",
   "entity.tripoddawn.uberpod": "Uberpod",
   "entity.tripoddawn.emperorpod": "Emperorpod",
+  "entity.tripoddawn.titan": "Titan",
   "entity.tripoddawn.heat_ray": "Heat ray",
+  "entity.tripoddawn.machine_part": "Machine",
 
   "item.tripoddawn.martian_spawn_egg": "Martian Spawn Egg",
   "item.tripoddawn.tripod_spawn_egg": "Tripod Spawn Egg",
   "item.tripoddawn.harvester_spawn_egg": "Harvester Spawn Egg",
   "item.tripoddawn.uberpod_spawn_egg": "Uberpod Spawn Egg",
   "item.tripoddawn.emperorpod_spawn_egg": "Emperorpod Spawn Egg",
+  "item.tripoddawn.titan_spawn_egg": "Titan Spawn Egg",
 
   "effect.tripoddawn.earthquake": "Earthquake",
 

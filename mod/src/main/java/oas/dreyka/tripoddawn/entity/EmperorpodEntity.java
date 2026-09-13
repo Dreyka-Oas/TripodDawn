@@ -38,6 +38,12 @@ public class EmperorpodEntity extends MachineEntity {
         return "emperorpod";
     }
 
+    /** Measured against a block ruler in game, like the walker, and it is the taller model. */
+    @Override
+    public float modelHeight() {
+        return 44.0f;
+    }
+
     @Override
     protected int experience() {
         return 200;
