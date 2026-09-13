@@ -12,15 +12,15 @@ Needed on the server and on every client, since the machines are rendered by Gec
 The invasion reads the world's own day counter. Nothing is stored per player, nothing is a game rule,
 and the mod costs nothing on a server nobody is playing on: one roll per night, not one per tick.
 
-| Day | Rung | Martians per player | Machines per night | Machines standing | Species opened |
-|---|---|---|---|---|---|
-| 0 | nothing yet | 0 | 0 | 0 | none |
-| 1 | the warning | 0 | 0 | 0 | none |
-| 3 | the scouts | 3 | 0 | 0 | none |
-| 8 | the walkers | 4 | 1 | 2 | tripod |
-| 14 | the harvest | 5 | 2 | 4 | harvester |
-| 20 | the siege | 6 | 3 | 8 | uberpod |
-| 30 | the emperor | 8 | 4 | 10 | emperorpod, once only |
+| Day | Rung | Martians per player | Machines per night | Machines standing | Strikes | Species opened |
+|---|---|---|---|---|---|---|
+| 0 | nothing yet | 0 | 0 | 0 | 0 | none |
+| 1 | the warning | 0 | 0 | 0 | 8 | none |
+| 3 | the scouts | 3 | 0 | 0 | 12 | none |
+| 8 | the walkers | 4 | 1 | 2 | 18 | tripod |
+| 14 | the harvest | 5 | 2 | 4 | 24 | harvester |
+| 20 | the siege | 6 | 3 | 8 | 34 | uberpod |
+| 30 | the emperor | 8 | 4 | 10 | 48 | emperorpod, once only |
 
 Night one is a horn over the horizon and the ground moving under your feet. Nothing arrives.
 
@@ -28,12 +28,24 @@ The newest species open gets half the rolls and the older ones share the rest, s
 something you see rather than something you read. Past the siege the per-night number stops being the
 limit and the standing number takes over.
 
-Nothing the invasion does is written in the chat. You learn where you are by listening.
+Nothing the invasion does is written in the chat. You learn where you are by listening, and by
+counting the sky.
+
+## The sky, twenty seconds before anything walks
+
+An invasion night puts the weather to thunder itself, then drops the strike count above around every
+player, between 20 and 96 blocks out, spread over twenty seconds. Almost none of them has anything
+under it. The four a machine lights on its way up are the same bolts, so watching the horizon tells
+you a night has started and nothing more precise than that.
+
+None of these carries fire or damage, at any difficulty. A rung that put twelve real bolts in a
+forest would have you fighting the fire instead of the thing that lit it.
 
 ## What comes out of the ground
 
 A machine arrives between 48 and 96 blocks away and spends thirty seconds climbing out, throwing soil
-while it rises and sounding its horn when it reaches the surface. Anyone within forty blocks of that
+while it rises and sounding its horn when it reaches the surface. Four bolts come down over the spot
+in the first eight seconds, the first one on the machine itself. Anyone within forty blocks of that
 gets the earthquake effect: the camera moves a little, without taking your aim away from you. The
 same thing happens once on night one, with no machine under it.
 

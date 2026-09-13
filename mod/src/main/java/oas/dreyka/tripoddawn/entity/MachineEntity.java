@@ -239,6 +239,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         }
         this.setDeltaMovement(0.0, Math.min(0.0, this.getDeltaMovement().y), 0.0);
         this.setTarget(null);
+        MachineArrival.lightning(server, this, t);
         MachineArrival.dust(server, this);
 
         // The horn lands late in the animation, once the hood is clear of the ground.

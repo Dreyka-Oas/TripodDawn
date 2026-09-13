@@ -58,6 +58,14 @@ public final class InvasionSpawner {
 
     private static final int OMEN_SHAKE_TICKS = 200;
 
+    /** How long the sky keeps tearing after a night opens, and how long the weather is held. */
+    private static final int STORM_TICKS = 400;
+    private static final int STORM_WEATHER_TICKS = 9000;
+
+    /** Where a barrage bolt can land. Near enough to light the ground a player stands on. */
+    private static final int STORM_MIN = 20;
+    private static final int STORM_MAX = 96;
+
     public static void register() {
         ServerTickEvents.END_WORLD_TICK.register(InvasionSpawner::tick);
     }
@@ -65,10 +73,16 @@ public final class InvasionSpawner {
     private static void tick(ServerLevel level) {
         // The invasion is an overworld affair: a machine climbing out of the nether roof would be a
         // bug rather than a scene.
-        if (level.dimension() != Level.OVERWORLD || !level.isDarkOutside()) {
+        if (level.dimension() != Level.OVERWORLD) {
             return;
         }
         InvasionState state = InvasionState.of(level);
+        if (state.storming(level)) {
+            storm(level, state);
+        }
+        if (!level.isDarkOutside()) {
+            return;
+        }
         long day = state.day(level);
         if (InvasionTier.forDay(day) == InvasionTier.QUIET || targets(level).isEmpty()) {
             return;
@@ -78,12 +92,46 @@ public final class InvasionSpawner {
         }
     }
 
+    /**
+     * The barrage, spread over the twenty seconds a night opens on rather than fired at once.
+     *
+     * <p>Almost none of these bolts has anything under it. That is the point: the four a machine
+     * lights on its way up are the same bolts, so a player watching the horizon cannot tell which
+     * strike is about to stand up and walk at them.
+     */
+    private static void storm(ServerLevel level, InvasionState state) {
+        int strikes = state.tier(level).strikes();
+        if (strikes <= 0) {
+            return;
+        }
+        RandomSource random = level.getRandom();
+        for (ServerPlayer player : targets(level)) {
+            if (random.nextInt(STORM_TICKS) >= strikes) {
+                continue;
+            }
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double reach = STORM_MIN + random.nextDouble() * (STORM_MAX - STORM_MIN);
+            BlockPos probe = new BlockPos(
+                    Mth.floor(player.getX() + Math.cos(angle) * reach),
+                    level.getMinY(),
+                    Mth.floor(player.getZ() + Math.sin(angle) * reach));
+            if (level.isLoaded(probe)) {
+                MachineArrival.bolt(level, column(level, probe));
+            }
+        }
+    }
+
     /** One night's worth of arrivals. Called by the tick above and by the test command. */
     public static int runNight(ServerLevel level, InvasionState state, InvasionTier tier) {
         List<ServerPlayer> players = targets(level);
         if (players.isEmpty() || tier == InvasionTier.QUIET) {
             return 0;
         }
+
+        // The sky is the announcement, and it has to be the right sky. Left to the vanilla cycle an
+        // invasion night lands clear as often as not, and a barrage under a clear sky reads as a bug.
+        level.setWeatherParameters(0, STORM_WEATHER_TICKS, true, true);
+        state.openStorm(level, STORM_TICKS);
 
         // The first night of a world is the warning and nothing else: a horn with no machine under
         // it, and the ground moving once.

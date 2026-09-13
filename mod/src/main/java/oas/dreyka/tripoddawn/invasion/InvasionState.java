@@ -11,9 +11,9 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 /**
  * What the invasion remembers between two sessions, stored beside the world.
  *
- * <p>Four things, and they all exist so that something happens once instead of every tick: how many
- * days the invasion has been shifted by a command, which night has already been run, and whether the
- * two one-off events have fired.
+ * <p>Five things, and they all exist so that something happens once instead of every tick: how many
+ * days the invasion has been shifted by a command, which night has already been run, whether the two
+ * one-off events have fired, and when the opening barrage runs out.
  */
 public class InvasionState extends SavedData {
 
@@ -23,7 +23,8 @@ public class InvasionState extends SavedData {
             Codec.INT.optionalFieldOf("day_shift", 0).forGetter(state -> state.dayShift),
             Codec.LONG.optionalFieldOf("last_night", -1L).forGetter(state -> state.lastNight),
             Codec.BOOL.optionalFieldOf("omen_done", false).forGetter(state -> state.omenDone),
-            Codec.BOOL.optionalFieldOf("emperor_done", false).forGetter(state -> state.emperorDone)
+            Codec.BOOL.optionalFieldOf("emperor_done", false).forGetter(state -> state.emperorDone),
+            Codec.LONG.optionalFieldOf("storm_until", 0L).forGetter(state -> state.stormUntil)
     ).apply(instance, InvasionState::new));
 
     public static final SavedDataType<InvasionState> TYPE = new SavedDataType<>(
@@ -33,16 +34,19 @@ public class InvasionState extends SavedData {
     private long lastNight;
     private boolean omenDone;
     private boolean emperorDone;
+    private long stormUntil;
 
     public InvasionState() {
-        this(0, -1L, false, false);
+        this(0, -1L, false, false, 0L);
     }
 
-    private InvasionState(int dayShift, long lastNight, boolean omenDone, boolean emperorDone) {
+    private InvasionState(int dayShift, long lastNight, boolean omenDone, boolean emperorDone,
+                          long stormUntil) {
         this.dayShift = dayShift;
         this.lastNight = lastNight;
         this.omenDone = omenDone;
         this.emperorDone = emperorDone;
+        this.stormUntil = stormUntil;
     }
 
     public static InvasionState of(ServerLevel level) {
@@ -75,7 +79,21 @@ public class InvasionState extends SavedData {
         this.lastNight = -1L;
         this.omenDone = false;
         this.emperorDone = false;
+        this.stormUntil = 0L;
         setDirty();
+    }
+
+    /**
+     * Opens the window the sky is struck through. Held on the game time rather than the day time,
+     * because a command moving the clock during a barrage would otherwise end it or make it eternal.
+     */
+    public void openStorm(ServerLevel level, int ticks) {
+        this.stormUntil = level.getGameTime() + ticks;
+        setDirty();
+    }
+
+    public boolean storming(ServerLevel level) {
+        return level.getGameTime() < this.stormUntil;
     }
 
     /** True once per night, for the first caller of that night. */
