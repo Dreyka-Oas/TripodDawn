@@ -84,11 +84,11 @@ public final class InvasionSpawner {
             return;
         }
         long day = state.day(level);
-        if (InvasionTier.forDay(day) == InvasionTier.QUIET || targets(level).isEmpty()) {
+        if (targets(level).isEmpty()) {
             return;
         }
         if (state.claimNight(day)) {
-            runNight(level, state, InvasionTier.forDay(day));
+            runNight(level, state, InvasionNight.of(day));
         }
     }
 
@@ -100,7 +100,7 @@ public final class InvasionSpawner {
      * strike is about to stand up and walk at them.
      */
     private static void storm(ServerLevel level, InvasionState state) {
-        int strikes = state.tier(level).strikes();
+        int strikes = state.night(level).strikes();
         if (strikes <= 0) {
             return;
         }
@@ -122,9 +122,9 @@ public final class InvasionSpawner {
     }
 
     /** One night's worth of arrivals. Called by the tick above and by the test command. */
-    public static int runNight(ServerLevel level, InvasionState state, InvasionTier tier) {
+    public static int runNight(ServerLevel level, InvasionState state, InvasionNight night) {
         List<ServerPlayer> players = targets(level);
-        if (players.isEmpty() || tier == InvasionTier.QUIET) {
+        if (players.isEmpty()) {
             return 0;
         }
 
@@ -133,37 +133,37 @@ public final class InvasionSpawner {
         level.setWeatherParameters(0, STORM_WEATHER_TICKS, true, true);
         state.openStorm(level, STORM_TICKS);
 
-        // The first night of a world is the warning and nothing else: a horn with no machine under
-        // it, and the ground moving once.
+        // The first night of a world gets the horn and the ground moving on top of its arrival, once
+        // and never again, so that the thing coming up is announced rather than simply there.
         if (state.claimOmen()) {
             omen(level, players);
         }
 
         int spawned = 0;
         for (ServerPlayer player : players) {
-            for (int i = 0; i < tier.martians(); i++) {
+            for (int i = 0; i < night.martians(); i++) {
                 if (place(level, TripodDawnEntities.MARTIAN, player, MARTIAN_MIN, MARTIAN_MAX, false) != null) {
                     spawned++;
                 }
             }
         }
 
-        if (!tier.hasMachines()) {
+        if (!night.hasMachines()) {
             return spawned;
         }
 
         // Past the siege rung the per-night number stops mattering and the standing number takes
         // over, which is the ceiling a server can actually hold.
-        int room = Math.min(tier.machinesPerNight(), tier.machinesAlive() - countMachines(level));
+        int room = Math.min(night.machinesPerNight(), night.machinesAlive() - countMachines(level));
         RandomSource random = level.getRandom();
         for (int i = 0; i < room; i++) {
             ServerPlayer player = players.get(random.nextInt(players.size()));
-            if (place(level, tier.roll(random), player, MACHINE_MIN, MACHINE_MAX, true) != null) {
+            if (place(level, night.roll(random), player, MACHINE_MIN, MACHINE_MAX, true) != null) {
                 spawned++;
             }
         }
 
-        if (tier == InvasionTier.EMPEROR && state.claimEmperor()) {
+        if (night.tier() == InvasionTier.EMPEROR && state.claimEmperor()) {
             ServerPlayer player = players.get(random.nextInt(players.size()));
             if (place(level, TripodDawnEntities.EMPERORPOD, player, MACHINE_MIN, MACHINE_MAX, true) != null) {
                 spawned++;

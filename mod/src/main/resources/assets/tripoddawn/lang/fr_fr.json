@@ -27,13 +27,13 @@
   "subtitles.tripoddawn.horn": "Corne de machine",
   "subtitles.tripoddawn.distant_horn": "Une corne, au loin",
 
-  "tripoddawn.tier.quiet": "rien encore",
   "tripoddawn.tier.omen": "l'avertissement",
   "tripoddawn.tier.scouts": "les éclaireurs",
   "tripoddawn.tier.walkers": "les marcheurs",
   "tripoddawn.tier.harvest": "la récolte",
   "tripoddawn.tier.siege": "le siège",
   "tripoddawn.tier.emperor": "l'empereur",
+  "tripoddawn.tier.beyond": "%1$s, échelon +%2$s",
 
   "commands.tripoddawn.day.read": "Invasion au jour %1$s, étape : %2$s",
   "commands.tripoddawn.day.set": "Invasion déplacée au jour %1$s, étape : %2$s",

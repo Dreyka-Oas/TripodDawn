@@ -13,34 +13,40 @@ import java.util.List;
  *
  * <p>The source mod had no progression at all: every machine could turn up on the first night, which
  * meant a new world was either empty or unplayable depending on one roll. The ladder below is what
- * replaces it. Each rung opens a species and raises the numbers, so a world gets louder the longer
- * it runs rather than deciding its difficulty once.
+ * replaces it. Each rung opens a species or raises the numbers, so a world gets louder the longer it
+ * runs rather than deciding its difficulty once.
+ *
+ * <p>This is the named part of the ladder and it stops at the emperor, because there is no eighth
+ * species to open. It is not where the difficulty stops: {@link InvasionNight} carries on from the
+ * last rung with the numbers alone.
  */
 public enum InvasionTier {
 
-    /** Before anything. A fresh world is an ordinary world. */
-    QUIET(0, 0, 0, 0, 0, List.of()),
+    /**
+     * The first night of a world, and a machine is already in it.
+     *
+     * <p>One, with the horn and the ground moving, and nothing on foot beside it. A player meets the
+     * thing on its own before they ever have to deal with two.
+     */
+    OMEN(0, 0, 1, 1, 8, List.of(TripodDawnEntities.TRIPOD)),
 
-    /** One horn over the horizon and the ground moving. Nothing arrives, and nothing is written. */
-    OMEN(1, 0, 0, 0, 8, List.of()),
+    /** The foot soldiers turn up, and a second machine may be standing while the first still walks. */
+    SCOUTS(3, 3, 1, 2, 12, List.of(TripodDawnEntities.TRIPOD)),
 
-    /** Foot soldiers only. A player with a sword handles a night of these. */
-    SCOUTS(3, 3, 0, 0, 12, List.of()),
+    /** More than one a night. One wall and a door stop being an answer here. */
+    WALKERS(8, 4, 2, 4, 18, List.of(TripodDawnEntities.TRIPOD)),
 
-    /** The first walker. One a night, two standing at most. */
-    WALKERS(8, 4, 1, 2, 18, List.of(TripodDawnEntities.TRIPOD)),
-
-    HARVEST(14, 5, 2, 4, 24, List.of(TripodDawnEntities.TRIPOD, TripodDawnEntities.HARVESTER)),
+    HARVEST(14, 5, 3, 6, 24, List.of(TripodDawnEntities.TRIPOD, TripodDawnEntities.HARVESTER)),
 
     /**
      * The per-night count stops being the limit here and the standing count takes over, which is
      * what "no ceiling" can mean without a server walking a hundred entities per tick.
      */
-    SIEGE(20, 6, 3, 8, 34, List.of(
+    SIEGE(20, 6, 4, 8, 34, List.of(
             TripodDawnEntities.TRIPOD, TripodDawnEntities.HARVESTER, TripodDawnEntities.UBERPOD)),
 
     /** The emperorpod comes once, on the first night of this rung, and never again. */
-    EMPEROR(30, 8, 4, 10, 48, List.of(
+    EMPEROR(30, 8, 5, 10, 48, List.of(
             TripodDawnEntities.TRIPOD, TripodDawnEntities.HARVESTER, TripodDawnEntities.UBERPOD));
 
     private final int firstDay;
@@ -107,12 +113,18 @@ public enum InvasionTier {
 
     /** The rung a given day sits on. */
     public static InvasionTier forDay(long day) {
-        InvasionTier found = QUIET;
+        InvasionTier found = values()[0];
         for (InvasionTier tier : values()) {
             if (day >= tier.firstDay) {
                 found = tier;
             }
         }
         return found;
+    }
+
+    /** The last written rung, which is where the ladder stops being a table. */
+    public static InvasionTier last() {
+        InvasionTier[] all = values();
+        return all[all.length - 1];
     }
 }

@@ -62,8 +62,8 @@ public class InvasionState extends SavedData {
         return level.getDayTime() / TICKS_PER_DAY + this.dayShift;
     }
 
-    public InvasionTier tier(ServerLevel level) {
-        return InvasionTier.forDay(day(level));
+    public InvasionNight night(ServerLevel level) {
+        return InvasionNight.of(day(level));
     }
 
     /** Jumps the invasion to a given day without touching the world clock. */

@@ -4,7 +4,7 @@ import oas.dreyka.tripoddawn.entity.MachineEntity;
 import oas.dreyka.tripoddawn.entity.TripodDawnEntities;
 import oas.dreyka.tripoddawn.invasion.InvasionSpawner;
 import oas.dreyka.tripoddawn.invasion.InvasionState;
-import oas.dreyka.tripoddawn.invasion.InvasionTier;
+import oas.dreyka.tripoddawn.invasion.InvasionNight;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -74,7 +74,7 @@ public final class TripodDawnCommands {
         ServerLevel level = context.getSource().getLevel();
         InvasionState state = InvasionState.of(level);
         long day = state.day(level);
-        report(context, "commands.tripoddawn.day.read", day, InvasionTier.forDay(day));
+        report(context, "commands.tripoddawn.day.read", day);
         return (int) day;
     }
 
@@ -86,7 +86,7 @@ public final class TripodDawnCommands {
         ServerLevel level = context.getSource().getLevel();
         InvasionState state = InvasionState.of(level);
         state.setDay(level, day);
-        report(context, "commands.tripoddawn.day.set", day, InvasionTier.forDay(day));
+        report(context, "commands.tripoddawn.day.set", day);
         return day;
     }
 
@@ -96,7 +96,7 @@ public final class TripodDawnCommands {
         InvasionState state = InvasionState.of(level);
         long day = state.day(level);
         state.forgetNight();
-        int spawned = InvasionSpawner.runNight(level, state, InvasionTier.forDay(day));
+        int spawned = InvasionSpawner.runNight(level, state, InvasionNight.of(day));
         context.getSource().sendSuccess(
                 () -> Component.translatable("commands.tripoddawn.wave", spawned), true);
         return spawned;
@@ -107,7 +107,7 @@ public final class TripodDawnCommands {
         InvasionState state = InvasionState.of(level);
         state.reset();
         long day = state.day(level);
-        report(context, "commands.tripoddawn.reset", day, InvasionTier.forDay(day));
+        report(context, "commands.tripoddawn.reset", day);
         return (int) day;
     }
 
@@ -133,8 +133,17 @@ public final class TripodDawnCommands {
         return 1;
     }
 
-    private static void report(CommandContext<CommandSourceStack> context, String key, long day, InvasionTier tier) {
-        Component name = Component.translatable("tripoddawn.tier." + tier.name().toLowerCase(Locale.ROOT));
-        context.getSource().sendSuccess(() -> Component.translatable(key, day, name), true);
+    /**
+     * Says where the invasion is. Past the last written rung the name alone stops meaning anything,
+     * since every night from day thirty on is called the emperor, so the step is spelled out beside
+     * it.
+     */
+    private static void report(CommandContext<CommandSourceStack> context, String key, long day) {
+        InvasionNight night = InvasionNight.of(day);
+        Component name = Component.translatable(
+                "tripoddawn.tier." + night.tier().name().toLowerCase(Locale.ROOT));
+        Component stage = night.step() == 0 ? name
+                : Component.translatable("tripoddawn.tier.beyond", name, night.step());
+        context.getSource().sendSuccess(() -> Component.translatable(key, day, stage), true);
     }
 }

@@ -14,19 +14,27 @@ and the mod costs nothing on a server nobody is playing on: one roll per night, 
 
 | Day | Rung | Martians per player | Machines per night | Machines standing | Strikes | Species opened |
 |---|---|---|---|---|---|---|
-| 0 | nothing yet | 0 | 0 | 0 | 0 | none |
-| 1 | the warning | 0 | 0 | 0 | 8 | none |
-| 3 | the scouts | 3 | 0 | 0 | 12 | none |
-| 8 | the walkers | 4 | 1 | 2 | 18 | tripod |
-| 14 | the harvest | 5 | 2 | 4 | 24 | harvester |
-| 20 | the siege | 6 | 3 | 8 | 34 | uberpod |
-| 30 | the emperor | 8 | 4 | 10 | 48 | emperorpod, once only |
+| 0 | the warning | 0 | 1 | 1 | 8 | tripod |
+| 3 | the scouts | 3 | 1 | 2 | 12 | none |
+| 8 | the walkers | 4 | 2 | 4 | 18 | none |
+| 14 | the harvest | 5 | 3 | 6 | 24 | harvester |
+| 20 | the siege | 6 | 4 | 8 | 34 | uberpod |
+| 30 | the emperor | 8 | 5 | 10 | 48 | emperorpod, once only |
+| 40, 50, 60 and on | one rung every ten days | +2 | +1 | +2 | +8 | none |
 
-Night one is a horn over the horizon and the ground moving under your feet. Nothing arrives.
+Night one of a world already has a machine in it, under a horn and the ground moving. One, and
+nothing on foot beside it: you meet the thing alone before you ever have to meet two.
 
 The newest species open gets half the rolls and the older ones share the rest, so reaching a rung is
 something you see rather than something you read. Past the siege the per-night number stops being the
 limit and the standing number takes over.
+
+The table stops at the emperor because there is no eighth species to open. The calendar does not stop
+with it: from day 30 on, every ten days adds a rung, and a rung is more on foot, more a night, more
+standing and more sky. Day 100 sends twenty-two martians and twelve machines at one player. The climb
+flattens at 32 martians, 12 a night, 24 standing and 160 strikes, and that ceiling is a tick budget
+rather than a difficulty decision: a machine is twenty-four blocks of pathfinding and the server
+walks every one of them.
 
 Nothing the invasion does is written in the chat, and nothing wears a bar at the top of the screen,
 the emperorpod included. A named health bar is writing too, and it would give away that the shape on

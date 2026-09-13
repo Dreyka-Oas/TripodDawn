@@ -27,13 +27,13 @@
   "subtitles.tripoddawn.horn": "Horn sounds",
   "subtitles.tripoddawn.distant_horn": "A horn, far away",
 
-  "tripoddawn.tier.quiet": "nothing yet",
   "tripoddawn.tier.omen": "the warning",
   "tripoddawn.tier.scouts": "scouts",
   "tripoddawn.tier.walkers": "walkers",
   "tripoddawn.tier.harvest": "harvest",
   "tripoddawn.tier.siege": "siege",
   "tripoddawn.tier.emperor": "the emperor",
+  "tripoddawn.tier.beyond": "%1$s, rung +%2$s",
 
   "commands.tripoddawn.day.read": "Invasion day %1$s, stage: %2$s",
   "commands.tripoddawn.day.set": "Invasion moved to day %1$s, stage: %2$s",
