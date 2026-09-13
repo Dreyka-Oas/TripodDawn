@@ -2,7 +2,10 @@ package oas.dreyka.tripoddawn.invasion;
 
 import oas.dreyka.tripoddawn.entity.MachineArrival;
 import oas.dreyka.tripoddawn.entity.MachineEntity;
+import oas.dreyka.tripoddawn.entity.TitanEntity;
 import oas.dreyka.tripoddawn.entity.TripodDawnEntities;
+import oas.dreyka.tripoddawn.entity.TripodEntity;
+import oas.dreyka.tripoddawn.entity.TripodVariant;
 import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -52,6 +55,13 @@ public final class InvasionSpawner {
 
     /** Half the footprint a machine is measured on, at its corners rather than block by block. */
     private static final int MACHINE_FOOTPRINT = 2;
+
+    /** The big one comes up further out, because the whole point of it is the silhouette. */
+    private static final int TITAN_MIN = 72;
+    private static final int TITAN_MAX = 112;
+
+    /** Six blocks of hull across, so the ground is read a block wider on each side than a walker's. */
+    private static final int TITAN_FOOTPRINT = 3;
 
     /** Ground can slope under a machine; past this it is a cliff and a leg ends up in the air. */
     private static final int MACHINE_SLOPE = 2;
@@ -175,14 +185,32 @@ public final class InvasionSpawner {
         RandomSource random = level.getRandom();
         for (int i = 0; i < room; i++) {
             ServerPlayer player = players.get(random.nextInt(players.size()));
-            if (place(level, night.roll(random), player, MACHINE_MIN, MACHINE_MAX, true) != null) {
-                spawned++;
+            Mob machine = place(level, night.roll(random), player, MACHINE_MIN, MACHINE_MAX, true);
+            if (machine == null) {
+                continue;
             }
+            // The build is read off the invasion's own day rather than the world's, so a server owner
+            // who jumped the calendar gets the machines that day sends instead of the ones the clock
+            // behind it would still be sending.
+            if (machine instanceof TripodEntity tripod) {
+                tripod.setVariant(TripodVariant.roll(random, night.day()));
+            }
+            spawned++;
         }
 
         if (night.tier() == InvasionTier.EMPEROR && state.claimEmperor()) {
             ServerPlayer player = players.get(random.nextInt(players.size()));
             if (place(level, TripodDawnEntities.EMPERORPOD, player, MACHINE_MIN, MACHINE_MAX, true) != null) {
+                spawned++;
+            }
+        }
+
+        // One standing at a time is the whole budget. It carries no bar and no line in the chat, so
+        // the only thing telling a player it is out there is its silhouette, and a second one on the
+        // same horizon spends that in one night.
+        if (night.rollTitan(random) && countTitans(level) == 0) {
+            ServerPlayer player = players.get(random.nextInt(players.size()));
+            if (place(level, TripodDawnEntities.TITAN, player, TITAN_MIN, TITAN_MAX, TITAN_FOOTPRINT) != null) {
                 spawned++;
             }
         }
@@ -202,8 +230,14 @@ public final class InvasionSpawner {
     /** Drops one creature on solid ground around a player, or returns null if nowhere works. */
     public static <T extends Mob> T place(ServerLevel level, EntityType<T> type, ServerPlayer around,
                                           int min, int max, boolean machine) {
+        return place(level, type, around, min, max, machine ? MACHINE_FOOTPRINT : 0);
+    }
+
+    /** The same, told how much ground the thing covers. Zero is a creature that walks on two legs. */
+    private static <T extends Mob> T place(ServerLevel level, EntityType<T> type, ServerPlayer around,
+                                           int min, int max, int footprint) {
         RandomSource random = level.getRandom();
-        int tries = machine ? MACHINE_TRIES : PLACEMENT_TRIES;
+        int tries = footprint > 0 ? MACHINE_TRIES : PLACEMENT_TRIES;
         for (int attempt = 0; attempt < tries; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double reach = min + random.nextDouble() * (max - min);
@@ -216,7 +250,7 @@ public final class InvasionSpawner {
                 continue;
             }
             BlockPos surface = column(level, probe);
-            if (!suitable(level, surface, machine)) {
+            if (!suitable(level, surface, footprint)) {
                 continue;
             }
 
@@ -234,18 +268,18 @@ public final class InvasionSpawner {
         return null;
     }
 
-    private static boolean suitable(ServerLevel level, BlockPos surface, boolean machine) {
-        if (!standable(level, surface, machine ? MACHINE_CLEARANCE : 2)) {
+    private static boolean suitable(ServerLevel level, BlockPos surface, int footprint) {
+        if (!standable(level, surface, footprint > 0 ? MACHINE_CLEARANCE : 2)) {
             return false;
         }
-        if (!machine) {
+        if (footprint == 0) {
             return true;
         }
         // A machine covers more ground than a block, and its corners are read on their own column:
         // measuring them at the middle's height turns every slope in the world into a refusal.
-        int step = MACHINE_FOOTPRINT * 2;
-        for (int dx = -MACHINE_FOOTPRINT; dx <= MACHINE_FOOTPRINT; dx += step) {
-            for (int dz = -MACHINE_FOOTPRINT; dz <= MACHINE_FOOTPRINT; dz += step) {
+        int step = footprint * 2;
+        for (int dx = -footprint; dx <= footprint; dx += step) {
+            for (int dz = -footprint; dz <= footprint; dz += step) {
                 BlockPos corner = column(level, surface.offset(dx, 0, dz));
                 if (Math.abs(corner.getY() - surface.getY()) > MACHINE_SLOPE
                         || !standable(level, corner, MACHINE_CLEARANCE)) {
@@ -282,6 +316,10 @@ public final class InvasionSpawner {
 
     public static int countMachines(ServerLevel level) {
         return level.getEntities(EntityTypeTest.forClass(MachineEntity.class), Entity::isAlive).size();
+    }
+
+    private static int countTitans(ServerLevel level) {
+        return level.getEntities(EntityTypeTest.forClass(TitanEntity.class), Entity::isAlive).size();
     }
 
     /** Who the invasion is aimed at. A spectator is not in the world as far as it is concerned. */

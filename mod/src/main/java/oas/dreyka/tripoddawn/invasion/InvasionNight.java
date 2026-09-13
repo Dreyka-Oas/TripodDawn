@@ -17,10 +17,20 @@ import net.minecraft.world.entity.EntityType;
  * twenty-four blocks of pathfinding and the server walks every one of them every tick, so the count
  * standing at once is the one number that cannot be allowed to run away.
  */
-public record InvasionNight(InvasionTier tier, int step, int martians, int machinesPerNight,
-                            int machinesAlive, int strikes) {
+public record InvasionNight(long day, InvasionTier tier, int step, int martians,
+                            int machinesPerNight, int machinesAlive, int strikes) {
 
     private static final int STEP_DAYS = 10;
+
+    /**
+     * The day the big one starts being possible, and how rarely it takes the offer.
+     *
+     * <p>Fifteen days past the emperor, which is a rung and a half of nights a player has already
+     * learned to handle, and one night in six from there. Nothing announces it, so rarity is the only
+     * thing that keeps it a silhouette on the horizon rather than the shape of an ordinary night.
+     */
+    private static final int TITAN_FROM = 45;
+    private static final int TITAN_ODDS = 6;
 
     private static final int MARTIANS_PER_STEP = 2;
     private static final int MACHINES_PER_STEP = 1;
@@ -35,7 +45,7 @@ public record InvasionNight(InvasionTier tier, int step, int martians, int machi
     public static InvasionNight of(long day) {
         InvasionTier tier = InvasionTier.forDay(day);
         int step = step(day);
-        return new InvasionNight(tier, step,
+        return new InvasionNight(day, tier, step,
                 climb(tier.martians(), step, MARTIANS_PER_STEP, MARTIANS_CAP),
                 climb(tier.machinesPerNight(), step, MACHINES_PER_STEP, MACHINES_CAP),
                 climb(tier.machinesAlive(), step, ALIVE_PER_STEP, ALIVE_CAP),
@@ -65,5 +75,10 @@ public record InvasionNight(InvasionTier tier, int step, int martians, int machi
 
     public EntityType<? extends MachineEntity> roll(RandomSource random) {
         return this.tier.roll(random);
+    }
+
+    /** Whether tonight is one of the nights the big one walks out of. */
+    public boolean rollTitan(RandomSource random) {
+        return this.day >= TITAN_FROM && random.nextInt(TITAN_ODDS) == 0;
     }
 }
