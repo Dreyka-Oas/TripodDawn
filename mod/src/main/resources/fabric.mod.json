@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "tripoddawn",
+  "version": "1.0.0",
+  "name": "TripodDawn",
+  "description": "War machines climb out of the ground and take your world apart. The first horn sounds on night one, the first walker arrives around day eight, and the pressure keeps rising after that. Bring the weapons you already have.",
+  "authors": [
+    "Dreyka Oas"
+  ],
+  "license": "MIT",
+  "contact": {
+    "homepage": "https://github.com/Dreyka-Oas/TripodDawn",
+    "sources": "https://github.com/Dreyka-Oas/TripodDawn",
+    "issues": "https://github.com/Dreyka-Oas/TripodDawn/issues"
+  },
+  "icon": "assets/tripoddawn/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "oas.dreyka.tripoddawn.TripodDawnMod"
+    ],
+    "client": [
+      "oas.dreyka.tripoddawn.client.TripodDawnClient"
+    ]
+  },
+  "mixins": [
+    "tripoddawn.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "fabric-api": "*",
+    "geckolib": ">=5.4.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}

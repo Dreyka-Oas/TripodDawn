@@ -1,0 +1,69 @@
+{
+  "entity.martian.growl": {
+    "subtitle": "subtitles.tripoddawn.martian.growl",
+    "sounds": [{ "name": "tripoddawn:martian_growl" }]
+  },
+  "entity.martian.hurt": {
+    "subtitle": "subtitles.tripoddawn.martian.hurt",
+    "sounds": [{ "name": "tripoddawn:martian_hurt" }]
+  },
+  "entity.martian.death": {
+    "subtitle": "subtitles.tripoddawn.martian.death",
+    "sounds": [{ "name": "tripoddawn:martian_death" }]
+  },
+  "entity.machine.spawn": {
+    "subtitle": "subtitles.tripoddawn.machine.spawn",
+    "sounds": [{ "name": "tripoddawn:machine_spawn", "stream": true }]
+  },
+  "entity.machine.death": {
+    "subtitle": "subtitles.tripoddawn.machine.death",
+    "sounds": [{ "name": "tripoddawn:machine_death" }]
+  },
+  "entity.machine.hurt": {
+    "subtitle": "subtitles.tripoddawn.machine.hurt",
+    "sounds": [{ "name": "tripoddawn:machine_hurt" }]
+  },
+  "entity.machine.shoot": {
+    "subtitle": "subtitles.tripoddawn.machine.shoot",
+    "sounds": [{ "name": "tripoddawn:machine_shoot" }]
+  },
+  "entity.machine.gas": {
+    "subtitle": "subtitles.tripoddawn.machine.gas",
+    "sounds": [{ "name": "tripoddawn:machine_gas" }]
+  },
+  "entity.machine.engine": {
+    "subtitle": "subtitles.tripoddawn.machine.engine",
+    "sounds": [{ "name": "tripoddawn:machine_engine" }]
+  },
+  "entity.machine.engine_far": {
+    "subtitle": "subtitles.tripoddawn.machine.engine",
+    "sounds": [{ "name": "tripoddawn:machine_engine_far" }]
+  },
+  "entity.machine.heat_ray": {
+    "subtitle": "subtitles.tripoddawn.machine.heat_ray",
+    "sounds": [{ "name": "tripoddawn:machine_heat_ray" }]
+  },
+  "entity.tripod.horn": {
+    "subtitle": "subtitles.tripoddawn.horn",
+    "sounds": [{ "name": "tripoddawn:tripod_horn" }]
+  },
+  "entity.tripod.horn_broken": {
+    "subtitle": "subtitles.tripoddawn.horn",
+    "sounds": [{ "name": "tripoddawn:tripod_horn_broken" }]
+  },
+  "entity.uberpod.horn": {
+    "subtitle": "subtitles.tripoddawn.horn",
+    "sounds": [{ "name": "tripoddawn:uberpod_horn" }]
+  },
+  "entity.emperorpod.horn": {
+    "subtitle": "subtitles.tripoddawn.horn",
+    "sounds": [{ "name": "tripoddawn:emperorpod_horn" }]
+  },
+  "ambient.distant_horn": {
+    "subtitle": "subtitles.tripoddawn.distant_horn",
+    "sounds": [
+      { "name": "tripoddawn:distant_horn_1" },
+      { "name": "tripoddawn:distant_horn_2" }
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "entity.tripoddawn.martian": "Martien",
+  "entity.tripoddawn.tripod": "Tripode",
+  "entity.tripoddawn.harvester": "Récolteur",
+  "entity.tripoddawn.uberpod": "Uberpod",
+  "entity.tripoddawn.emperorpod": "Emperorpod",
+  "entity.tripoddawn.heat_ray": "Rayon ardent",
+
+  "item.tripoddawn.martian_spawn_egg": "Œuf d'apparition de martien",
+  "item.tripoddawn.tripod_spawn_egg": "Œuf d'apparition de tripode",
+  "item.tripoddawn.harvester_spawn_egg": "Œuf d'apparition de récolteur",
+  "item.tripoddawn.uberpod_spawn_egg": "Œuf d'apparition d'uberpod",
+  "item.tripoddawn.emperorpod_spawn_egg": "Œuf d'apparition d'emperorpod",
+
+  "effect.tripoddawn.earthquake": "Secousse",
+
+  "subtitles.tripoddawn.martian.growl": "Grognement de martien",
+  "subtitles.tripoddawn.martian.hurt": "Martien blessé",
+  "subtitles.tripoddawn.martian.death": "Mort d'un martien",
+  "subtitles.tripoddawn.machine.spawn": "Le sol se déchire",
+  "subtitles.tripoddawn.machine.death": "Effondrement d'une machine",
+  "subtitles.tripoddawn.machine.hurt": "Machine touchée",
+  "subtitles.tripoddawn.machine.shoot": "Une machine vise",
+  "subtitles.tripoddawn.machine.gas": "Fuite de gaz",
+  "subtitles.tripoddawn.machine.engine": "Grondement de moteur",
+  "subtitles.tripoddawn.machine.heat_ray": "Tir du rayon ardent",
+  "subtitles.tripoddawn.horn": "Corne de machine",
+  "subtitles.tripoddawn.distant_horn": "Une corne, au loin",
+
+  "tripoddawn.tier.quiet": "rien encore",
+  "tripoddawn.tier.omen": "l'avertissement",
+  "tripoddawn.tier.scouts": "les éclaireurs",
+  "tripoddawn.tier.walkers": "les marcheurs",
+  "tripoddawn.tier.harvest": "la récolte",
+  "tripoddawn.tier.siege": "le siège",
+  "tripoddawn.tier.emperor": "l'empereur",
+
+  "commands.tripoddawn.day.read": "Invasion au jour %1$s, étape : %2$s",
+  "commands.tripoddawn.day.set": "Invasion déplacée au jour %1$s, étape : %2$s",
+  "commands.tripoddawn.reset": "Invasion recalée sur l'horloge du monde, jour %1$s, étape : %2$s",
+  "commands.tripoddawn.wave": "%1$s arrivées",
+  "commands.tripoddawn.spawn": "%1$s posé en %2$s, %3$s",
+  "commands.tripoddawn.spawn.no_player": "Commande à lancer depuis un joueur, il lui faut un point de départ",
+  "commands.tripoddawn.spawn.no_room": "Aucun terrain assez dégagé dans les environs"
+}

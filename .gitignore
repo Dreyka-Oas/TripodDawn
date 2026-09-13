@@ -1,0 +1,89 @@
+# ---- Gradle / Loom ----
+.gradle/
+build/
+# Loom run directory: maps, mods, packs, logs, never versioned
+run/
+# Kotlin DSL session: Gradle creates it next to build.gradle.kts on every configuration
+.kotlin/
+gradle-app.setting
+.gradletasknamecache
+# NB: gradle/wrapper/gradle-wrapper.jar is TRACKED on purpose (it is what runs ./gradlew)
+
+# ---- Compiler output outside build/ ----
+*.class
+bin/
+out/
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# ---- Logs and JVM crash dumps ----
+# *.log already covers hs_err_pid*.log and replay_pid*.log; heap dumps, by contrast, weigh
+# several GB and carry no .log extension
+*.log
+*.hprof
+core.[0-9]*
+.attach_pid*
+# Server logs, regenerated on every launch (Gradle/Minecraft)
+/mod/logs/
+# Captured output from dev launches
+rc.txt
+rs.txt
+
+# ---- Secrets ----
+# The site deploys to Cloudflare: no token must ever be able to leave by accident
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- Editor, merge and patch leftovers ----
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+
+# ---- Local tooling, never pushed ----
+.skills/
+.claude/
+.codex/
+opencode.json
+# Local Cloudflare Wrangler cache
+.wrangler/
+# Local git worktrees (multi-agent runs)
+/.worktrees/
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- The site, if it ever exists, lives in its own private repo inside this folder ----
+/web/
+
+# ---- Local scratch for the subagent-driven run, never pushed ----
+.superpowers/
+
+# ---- Session-scoped design docs, never published ----
+docs/superpowers/
+
+# ---- Working notes, never published ----
+PROJECT.md
+PLAN.md
+INVENTAIRE.md
+docs-tri.md
+DEFAUTS-CONNUS.md
+
+# ---- The author's own instruments, never published ----
+# The repository carries what a player and an addon author need, and nothing else. The three scripts
+# that rebuild the assets do ship, since the README sends a reader to them; the invisible-session
+# harness does not, because it only means anything to the machine it was written on.
+store/
+mod/scripts/headless-test.sh
+mod/scripts/rcon.py

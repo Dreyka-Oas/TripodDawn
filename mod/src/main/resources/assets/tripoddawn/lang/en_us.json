@@ -1,0 +1,45 @@
+{
+  "entity.tripoddawn.martian": "Martian",
+  "entity.tripoddawn.tripod": "Tripod",
+  "entity.tripoddawn.harvester": "Harvester",
+  "entity.tripoddawn.uberpod": "Uberpod",
+  "entity.tripoddawn.emperorpod": "Emperorpod",
+  "entity.tripoddawn.heat_ray": "Heat ray",
+
+  "item.tripoddawn.martian_spawn_egg": "Martian Spawn Egg",
+  "item.tripoddawn.tripod_spawn_egg": "Tripod Spawn Egg",
+  "item.tripoddawn.harvester_spawn_egg": "Harvester Spawn Egg",
+  "item.tripoddawn.uberpod_spawn_egg": "Uberpod Spawn Egg",
+  "item.tripoddawn.emperorpod_spawn_egg": "Emperorpod Spawn Egg",
+
+  "effect.tripoddawn.earthquake": "Earthquake",
+
+  "subtitles.tripoddawn.martian.growl": "Martian growls",
+  "subtitles.tripoddawn.martian.hurt": "Martian hurts",
+  "subtitles.tripoddawn.martian.death": "Martian dies",
+  "subtitles.tripoddawn.machine.spawn": "The ground splits open",
+  "subtitles.tripoddawn.machine.death": "Machine collapses",
+  "subtitles.tripoddawn.machine.hurt": "Machine takes a hit",
+  "subtitles.tripoddawn.machine.shoot": "Machine takes aim",
+  "subtitles.tripoddawn.machine.gas": "Gas escapes",
+  "subtitles.tripoddawn.machine.engine": "Engine grinds",
+  "subtitles.tripoddawn.machine.heat_ray": "Heat ray fires",
+  "subtitles.tripoddawn.horn": "Horn sounds",
+  "subtitles.tripoddawn.distant_horn": "A horn, far away",
+
+  "tripoddawn.tier.quiet": "nothing yet",
+  "tripoddawn.tier.omen": "the warning",
+  "tripoddawn.tier.scouts": "scouts",
+  "tripoddawn.tier.walkers": "walkers",
+  "tripoddawn.tier.harvest": "harvest",
+  "tripoddawn.tier.siege": "siege",
+  "tripoddawn.tier.emperor": "the emperor",
+
+  "commands.tripoddawn.day.read": "Invasion day %1$s, stage: %2$s",
+  "commands.tripoddawn.day.set": "Invasion moved to day %1$s, stage: %2$s",
+  "commands.tripoddawn.reset": "Invasion back on the world clock, day %1$s, stage: %2$s",
+  "commands.tripoddawn.wave": "%1$s arrivals",
+  "commands.tripoddawn.spawn": "%1$s placed at %2$s, %3$s",
+  "commands.tripoddawn.spawn.no_player": "This one has to be run by a player, it needs somewhere to aim from",
+  "commands.tripoddawn.spawn.no_room": "No ground clear enough anywhere nearby"
+}
