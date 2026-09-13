@@ -97,22 +97,48 @@ def check_sounds(en, fr):
         fail("sounds/", f"{file}.ogg ships and nothing plays it")
 
 
+def want(name, bones=True, clips=True, skin=True):
+    """What a GeckoLib name has to have on disk, given what it is used for."""
+    for need, folder, suffix in ((bones, "models", ".geo.json"), (clips, "animations", ".animation.json")):
+        path = ASSETS / "geckolib" / folder / f"{name}{suffix}"
+        if need and not path.exists():
+            fail("geckolib", f"{name} has no {folder[:-1]} at {path.relative_to(ASSETS)}")
+    if skin and not (ASSETS / "textures/entity" / f"{name}.png").exists():
+        fail("geckolib", f"{name} has no texture at textures/entity/{name}.png")
+
+
 def check_geckolib():
-    """The four machines and the martian, read off the renderer registrations."""
+    """
+    The creatures, read off the renderer registrations, plus the builds behind the tripod.
+
+    The arguments of a model are not interchangeable, so they are not checked as a bag of names.
+    One is the standing machine, two is that machine plus its collapsed model, three is a machine
+    whose bones are its own and whose clips were written for another one. A name that only ever
+    supplies clips owes no texture, and a build owes no clips.
+    """
     source = (JAVA / "client/TripodDawnClient.java").read_text(encoding="utf-8")
-    names = set()
-    for match in re.findall(r'GeoModel<>\(([^)]*)\)', source):
-        names.update(re.findall(r'"([a-z_]+)"', match))
-    if not names:
+    calls = re.findall(r'GeoModel<>\(([^)]*)\)', source)
+    if not calls:
         fail("TripodDawnClient.java", "no GeckoLib model name found, the check would pass on nothing")
 
-    for name in sorted(names):
-        for folder, suffix in (("models", ".geo.json"), ("animations", ".animation.json")):
-            path = ASSETS / "geckolib" / folder / f"{name}{suffix}"
-            if not path.exists():
-                fail("geckolib", f"{name} has no {folder[:-1]} at {path.relative_to(ASSETS)}")
-        if not (ASSETS / "textures/entity" / f"{name}.png").exists():
-            fail("geckolib", f"{name} has no texture at textures/entity/{name}.png")
+    for call in calls:
+        names = re.findall(r'"([a-z_]+)"', call)
+        if len(names) == 1:
+            want(names[0])
+        elif len(names) == 2:
+            want(names[0])
+            want(names[1])
+        else:
+            want(names[0], clips=False)
+            want(names[1], bones=False, skin=False)
+            want(names[2])
+
+    builds = re.findall(r'\(\s*"([a-z_]+)"\s*,\s*[0-9]',
+                        (JAVA / "entity/TripodVariant.java").read_text(encoding="utf-8"))
+    if not builds:
+        fail("TripodVariant.java", "no build model name found, the check would pass on nothing")
+    for name in builds:
+        want(name, clips=False)
 
 
 def check_particles():
