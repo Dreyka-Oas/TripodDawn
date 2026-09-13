@@ -36,9 +36,29 @@ public class EmperorpodEntity extends MachineEntity {
     @Override
     public void tick() {
         super.tick();
-        if (!this.level().isClientSide()) {
-            this.bossBar.setProgress(this.getHealth() / this.getMaxHealth());
+        if (this.level().isClientSide()) {
+            return;
         }
+        // The wreck lies on the ground for five minutes. A bar held at zero over it reads as a fight
+        // still going on, so the bar ends with the machine rather than with the body.
+        if (this.isDeadOrDying()) {
+            this.bossBar.removeAllPlayers();
+            return;
+        }
+        this.bossBar.setProgress(this.getHealth() / this.getMaxHealth());
+    }
+
+    /**
+     * The bar leaves with the entity whichever way the entity leaves.
+     *
+     * <p>Left to {@link #stopSeenByPlayer} alone, a machine taken out of the world without being
+     * killed, which is what peaceful difficulty does to every monster in it, leaves its bar at the
+     * top of the screen with nothing underneath, and the next one stacks below it.
+     */
+    @Override
+    public void remove(RemovalReason reason) {
+        super.remove(reason);
+        this.bossBar.removeAllPlayers();
     }
 
     @Override
