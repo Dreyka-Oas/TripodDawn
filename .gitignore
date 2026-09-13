@@ -87,3 +87,6 @@ DEFAUTS-CONNUS.md
 store/
 mod/scripts/headless-test.sh
 mod/scripts/rcon.py
+
+# ---- In-game proof gallery, kept on disk, never published ----
+preuves/
