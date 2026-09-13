@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -18,13 +19,12 @@ import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
-import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animatable.manager.AnimatableManager;
@@ -199,8 +199,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
 
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new HuntPlayerGoal(this));
-        this.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, AbstractVillager.class, true));
-        this.targetSelector.addGoal(4, new NearestAttackableTargetGoal<>(this, Animal.class, true));
+        this.targetSelector.addGoal(3, new HuntLifeGoal(this));
+    }
+
+    /** Anything the invasion brought with it. A machine neither aims at these nor burns them. */
+    public static boolean invader(Entity entity) {
+        return entity instanceof MachineEntity || entity instanceof MartianEntity;
     }
 
     /**
@@ -215,6 +219,31 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         private HuntPlayerGoal(MachineEntity machine) {
             super(machine, Player.class, 10, false, false, null);
             this.targetConditions.ignoreLineOfSight();
+        }
+    }
+
+    /**
+     * Everything else alive, which is the point of the thing: a harvester walks past a cow and a
+     * villager because a list of two classes did not have them on it.
+     *
+     * <p>Hostile mobs are left off. They are on the invasion's side by accident of who they fight,
+     * its own martians are monsters too, and a machine spending a night clearing the zombies off a
+     * village would be defending it.
+     *
+     * <p>Searched over the range it can shoot at rather than the hundred blocks it hunts a player
+     * over: this one walks every living entity in its box, and a siege night stands ten of them.
+     */
+    private static final class HuntLifeGoal extends NearestAttackableTargetGoal<LivingEntity> {
+        private static final double SEARCH_RANGE = 48.0;
+
+        private HuntLifeGoal(MachineEntity machine) {
+            super(machine, LivingEntity.class, 20, false, false,
+                    (living, level) -> !(living instanceof Monster) && !(living instanceof Player));
+        }
+
+        @Override
+        protected AABB getTargetSearchArea(double range) {
+            return super.getTargetSearchArea(Math.min(range, SEARCH_RANGE));
         }
     }
 
