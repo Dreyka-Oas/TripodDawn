@@ -1,7 +1,9 @@
 package oas.dreyka.tripoddawn.entity;
 
+import oas.dreyka.tripoddawn.particle.TripodDawnParticles;
 import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
 
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -56,21 +58,24 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     /** When the soil stops being thrown, early enough that the last of it dies with the rise. */
     private static final int DUST_TICKS = EMERGE_TICKS - 80;
 
-    /** How long a wreck stays on the ground. It is the only trace a fight leaves behind. */
+    /** How long a wreck stays on the ground before it goes up. */
     private static final int WRECK_TICKS = 6000;
+
+    /** The blast a wreck leaves. Wide enough to be a crater, short of levelling a house. */
+    private static final float SCUTTLE_POWER = 3.5f;
 
     /** The fall lasts five seconds; past it the machine is scenery rather than a death. */
     private static final int FALL_TICKS = 100;
 
     /**
      * How far a machine looks for someone to walk at. It has to cover the ninety-six blocks the
-     * invasion drops one at, or the half that land past it never notice the player they came for and
-     * spend the night strolling.
+     * invasion drops one at with room to spare, or the half that land past it never notice the player
+     * they came for and spend the night strolling.
      */
-    public static final double HUNT_RANGE = 100.0;
+    public static final double HUNT_RANGE = 128.0;
 
     /** How far it shoots, which is nearer than how far it hunts: it closes in before it fires. */
-    private static final double WEAPON_RANGE = 64.0;
+    private static final double WEAPON_RANGE = 80.0;
 
     /**
      * Nearer than this the machine stamps instead of firing. The ray leaves a hood twenty blocks up
@@ -234,7 +239,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * over: this one walks every living entity in its box, and a siege night stands ten of them.
      */
     private static final class HuntLifeGoal extends NearestAttackableTargetGoal<LivingEntity> {
-        private static final double SEARCH_RANGE = 48.0;
+        private static final double SEARCH_RANGE = 64.0;
 
         private HuntLifeGoal(MachineEntity machine) {
             super(machine, LivingEntity.class, 20, false, false,
@@ -341,10 +346,37 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     @Override
     protected void tickDeath() {
         this.deathTime++;
-        if (this.deathTime >= WRECK_TICKS && !this.level().isClientSide()) {
-            this.level().broadcastEntityEvent(this, (byte) 60);
-            this.remove(RemovalReason.KILLED);
+        if (this.deathTime < WRECK_TICKS || !(this.level() instanceof ServerLevel server)) {
+            return;
         }
+        scuttle(server);
+        this.remove(RemovalReason.KILLED);
+    }
+
+    /**
+     * What a wreck does instead of blinking out.
+     *
+     * <p>Five minutes of a machine lying in a field is scenery, and scenery that vanishes between two
+     * glances reads as the game forgetting it. Bound to the vanilla mob griefing rule like every other
+     * blast this mod sets off, so a server that turned block damage off has already said so.
+     */
+    private void scuttle(ServerLevel server) {
+        // Counts kept low on purpose: the mod's own flame quads are three blocks across, so a
+        // handful of them reads as a blast and forty of them paints the whole screen orange.
+        double y = this.getY() + 1.0;
+        TripodDawnParticles.send(server, ParticleTypes.EXPLOSION_EMITTER,
+                this.getX(), y, this.getZ(), 2, 1.4, 0.6, 1.4, 0.0);
+        TripodDawnParticles.send(server, TripodDawnParticles.BLAST,
+                this.getX(), y, this.getZ(), 5, 0.9, 0.5, 0.9, 0.05);
+        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY,
+                this.getX(), y, this.getZ(), 8, 1.1, 0.7, 1.1, 0.08);
+        TripodDawnParticles.send(server, ParticleTypes.LARGE_SMOKE,
+                this.getX(), y, this.getZ(), 24, 2.0, 1.2, 2.0, 0.05);
+
+        // No fire, unlike the ray. The ray burns something a player is looking at during a fight; this
+        // goes off five minutes after one ended, as often as not next to the base they went back to.
+        server.explode(this, this.getX(), y, this.getZ(), SCUTTLE_POWER, false,
+                Level.ExplosionInteraction.MOB);
     }
 
     /** A wreck is scenery: it neither pushes nor is pushed. */

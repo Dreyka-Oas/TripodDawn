@@ -58,9 +58,10 @@ public class MartianEntity extends Monster implements GeoEntity {
                 .add(Attributes.MAX_HEALTH, 40.0)
                 .add(Attributes.ARMOR, 0.0)
                 .add(Attributes.ATTACK_DAMAGE, 8.0)
-                // Reaches the forty-four blocks the invasion drops one at, so a martian walks at the
-                // player it was sent for instead of waiting to be walked into.
-                .add(Attributes.FOLLOW_RANGE, 48.0)
+                // Covers the forty-four blocks the invasion drops one at with room left over, so a
+                // martian walks at the player it was sent for instead of waiting to be walked into,
+                // and keeps walking when that player backs off rather than losing them at the edge.
+                .add(Attributes.FOLLOW_RANGE, 64.0)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 0.25);
     }
 

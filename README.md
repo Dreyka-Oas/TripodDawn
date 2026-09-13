@@ -12,6 +12,11 @@ Needed on the server and on every client, since the machines are rendered by Gec
 The invasion reads the world's own day counter. Nothing is stored per player, nothing is a game rule,
 and the mod costs nothing on a server nobody is playing on: one roll per night, not one per tick.
 
+Nothing comes up in daylight. A night opens between 13000 and 23000 on the world clock, once, and the
+gate is the clock rather than how dark the sky looks, because a thunderstorm at noon is dark enough to
+fool the second test and this mod starts a thunderstorm itself at the top of every invasion night. The
+one exception is deliberate and is the command below.
+
 | Day | Rung | Martians per player | Machines per night | Machines standing | Strikes | Species opened |
 |---|---|---|---|---|---|---|
 | 0 | the warning | 0 | 1 | 1 | 8 | tripod |
@@ -59,26 +64,29 @@ in the first eight seconds, the first one on the machine itself. Anyone within f
 gets the earthquake effect: the camera moves a little, without taking your aim away from you. The
 same thing happens once on night one, with no machine under it.
 
-Once it is standing it comes for you. A machine picks a player out up to a hundred blocks away, walks
-the whole distance, and does not need to have seen you first: it is twenty-four blocks tall and one
-hill is not cover. It stays where it came up, and walking away does not make it disappear. Martians
-are ordinary night mobs and do despawn, which is what stops a week of nights from piling up.
+Once it is standing it comes for you. A machine picks a player out up to a hundred and twenty-eight
+blocks away, walks the whole distance, and does not need to have seen you first: it is twenty-four
+blocks tall and one hill is not cover. That reach is longer than the ninety-six it can arrive at, so
+the ones that land at the far edge start walking instead of strolling, and backing off a chunk does
+not shake one loose. It stays where it came up, and walking away does not make it disappear. Martians
+hold on to sixty-four blocks, and are ordinary night mobs that do despawn, which is what stops a week
+of nights from piling up.
 
-With no player in reach it shoots whatever else is alive within forty-eight blocks, so a village left
+With no player in reach it shoots whatever else is alive within sixty-four blocks, so a village left
 behind burns on its own and the cows in the field go with it. Two things are spared: the invasion
 never fires on its own, and the night mobs are left to the player, since a machine clearing the
 zombies off a roof would be helping rather than hunting.
 
 | Creature | Health | Armour | Stamp | Notes |
 |---|---|---|---|---|
-| Martian | 40 | 0 | 8 | on foot, comes at you from 48 blocks |
+| Martian | 40 | 0 | 8 | on foot, comes at you from 64 blocks |
 | Tripod | 200 | 15 | 30 | heat ray |
 | Harvester | 180 | 15 | 30 | heat ray |
 | Uberpod | 280 | 25 | 40 | heat ray |
 | Emperorpod | 450 | 25 | 60 | heat ray, one per world |
 
 The heat ray is the thing that kills you, not the stamp. A machine takes aim for a second and a
-quarter, with a sound to tell you so, then fires anything between 12 and 64 blocks as long as it can
+quarter, with a sound to tell you so, then fires anything between 12 and 80 blocks as long as it can
 see you. A direct hit kills a player outright and sets what is left on fire; what it misses it blows
 a hole in. Inside twelve blocks it stops firing and stamps instead, so the ground under a machine is
 the one place its ray cannot reach.
@@ -93,8 +101,13 @@ Machines take normal damage from everything: a sword, an axe, an arrow, a block 
 and their armour are the only thing between you and them. Killing one drops nothing and gives
 experience.
 
-A machine that dies falls over and stays on the ground as a wreck for five minutes before the world
-cleans it up.
+A machine that dies falls over and stays on the ground as a wreck, burning, for five minutes. Then it
+scuttles itself: a blast the size of three sticks of TNT, a crater, and smoke over the spot. A wreck
+that simply blinked out at the end of its five minutes would read as the game forgetting it, and the
+blast also means the thing is dangerous right up to the end. It lights no fire, unlike the ray, since
+it goes off long after the fight and usually next to wherever you went afterwards. It obeys the
+vanilla mob griefing rule like everything else this mod sets off, so a server that turned block damage
+off has already said no to the crater.
 
 ## The command
 

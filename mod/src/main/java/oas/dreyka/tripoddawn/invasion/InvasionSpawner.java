@@ -66,6 +66,10 @@ public final class InvasionSpawner {
     private static final int STORM_MIN = 20;
     private static final int STORM_MAX = 96;
 
+    /** Sundown and sunup, in day time. */
+    private static final int NIGHT_FROM = 13000;
+    private static final int NIGHT_UNTIL = 23000;
+
     public static void register() {
         ServerTickEvents.END_WORLD_TICK.register(InvasionSpawner::tick);
     }
@@ -80,7 +84,7 @@ public final class InvasionSpawner {
         if (state.storming(level)) {
             storm(level, state);
         }
-        if (!level.isDarkOutside()) {
+        if (!night(level)) {
             return;
         }
         long day = state.day(level);
@@ -90,6 +94,19 @@ public final class InvasionSpawner {
         if (state.claimNight(day)) {
             runNight(level, state, InvasionNight.of(day));
         }
+    }
+
+    /**
+     * Whether the sun is down.
+     *
+     * <p>Read off the clock rather than off the light, because a thunderstorm darkens a noon sky and
+     * this mod forces one itself at the top of every invasion night. Asking the sky instead would open
+     * a night at midday, and open the next one at dawn while the previous night's storm was still
+     * running.
+     */
+    private static boolean night(ServerLevel level) {
+        long time = level.getDayTime() % InvasionState.TICKS_PER_DAY;
+        return time >= NIGHT_FROM && time < NIGHT_UNTIL;
     }
 
     /**
