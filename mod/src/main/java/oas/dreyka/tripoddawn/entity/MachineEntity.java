@@ -53,6 +53,9 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     /** The rise animation runs thirty seconds and holds its last frame; the state ends with it. */
     public static final int EMERGE_TICKS = 600;
 
+    /** When the soil stops being thrown, early enough that the last of it dies with the rise. */
+    private static final int DUST_TICKS = EMERGE_TICKS - 80;
+
     /** How long a wreck stays on the ground. It is the only trace a fight leaves behind. */
     private static final int WRECK_TICKS = 6000;
 
@@ -240,7 +243,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         this.setDeltaMovement(0.0, Math.min(0.0, this.getDeltaMovement().y), 0.0);
         this.setTarget(null);
         MachineArrival.lightning(server, this, t);
-        MachineArrival.dust(server, this);
+
+        // The soil stops flying a few seconds before the animation ends, so the last of it has burnt
+        // out by the time the machine is standing and nothing is left lying around its feet.
+        if (t < DUST_TICKS) {
+            MachineArrival.dust(server, this);
+        }
 
         // The horn lands late in the animation, once the hood is clear of the ground.
         if (t == EMERGE_TICKS - 120) {
