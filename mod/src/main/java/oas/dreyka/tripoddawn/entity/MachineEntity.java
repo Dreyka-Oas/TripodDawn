@@ -371,7 +371,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return test.setAndContinue(prefixed(machine.deathTime < FALL_TICKS ? DEATH : GROUND, p));
         }
         if (machine.emerging()) {
-            return test.setAndContinue(prefixed(SPAWN, p));
+            PlayState state = test.setAndContinue(prefixed(SPAWN, p));
+            // The rise is a thirty second clip laid over a counter the server owns, so it is driven
+            // from that counter rather than from whenever this client started drawing the machine.
+            // Without it, dying beside one and coming back has it climb out of the ground again.
+            test.controller().setAnimationTime(machine.phaseTicks() / 20.0);
+            return state;
         }
         return test.setAndContinue(prefixed(test.isMoving() ? WALK : IDLE, p));
     }
