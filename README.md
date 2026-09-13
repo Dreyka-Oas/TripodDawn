@@ -28,7 +28,9 @@ The newest species open gets half the rolls and the older ones share the rest, s
 something you see rather than something you read. Past the siege the per-night number stops being the
 limit and the standing number takes over.
 
-Nothing the invasion does is written in the chat. You learn where you are by listening, and by
+Nothing the invasion does is written in the chat, and nothing wears a bar at the top of the screen,
+the emperorpod included. A named health bar is writing too, and it would give away that the shape on
+the horizon is the last one rather than another uberpod. You learn where you are by listening, and by
 counting the sky.
 
 ## The sky, twenty seconds before anything walks
@@ -54,6 +56,11 @@ the whole distance, and does not need to have seen you first: it is twenty-four 
 hill is not cover. It stays where it came up, and walking away does not make it disappear. Martians
 are ordinary night mobs and do despawn, which is what stops a week of nights from piling up.
 
+With no player in reach it shoots whatever else is alive within forty-eight blocks, so a village left
+behind burns on its own and the cows in the field go with it. Two things are spared: the invasion
+never fires on its own, and the night mobs are left to the player, since a machine clearing the
+zombies off a roof would be helping rather than hunting.
+
 | Creature | Health | Armour | Stamp | Notes |
 |---|---|---|---|---|
 | Martian | 40 | 0 | 8 | on foot, comes at you from 48 blocks |
@@ -67,6 +74,12 @@ quarter, with a sound to tell you so, then fires anything between 12 and 64 bloc
 see you. A direct hit kills a player outright and sets what is left on fire; what it misses it blows
 a hole in. Inside twelve blocks it stops firing and stamps instead, so the ground under a machine is
 the one place its ray cannot reach.
+
+You get that second and a quarter to read. The hood gathers a glow that starts wide and dim and
+closes to a point, the shot leaves on a bloom thrown two blocks out in front, and the ray draws a
+continuous rope rather than a dotted line: a white core inside an orange sleeve, laid down along the
+three blocks it crosses each tick instead of once at its head. It goes through up to ten bodies,
+flashing on each, and ends in a white flash, an orange ball thrown back the way it came, and smoke.
 
 Machines take normal damage from everything: a sword, an axe, an arrow, a block of TNT. Their health
 and their armour are the only thing between you and them. Killing one drops nothing and gives
