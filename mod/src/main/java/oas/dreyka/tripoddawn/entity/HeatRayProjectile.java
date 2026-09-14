@@ -11,6 +11,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.ExplosionDamageCalculator;
 import net.minecraft.world.level.Level;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.level.gameevent.GameEvent;
@@ -289,6 +291,17 @@ public class HeatRayProjectile extends Projectile {
     }
 
     /**
+     * The blast takes the ground and whoever is standing on it, never the machines that called it
+     * down. Blocks are left to the default rules, so a server that turned griefing off keeps it off.
+     */
+    private static final ExplosionDamageCalculator SPARE_INVADERS = new ExplosionDamageCalculator() {
+        @Override
+        public boolean shouldDamageEntity(Explosion explosion, Entity entity) {
+            return !MachineEntity.invader(entity);
+        }
+    };
+
+    /**
      * The hole and the fire. Bound to the vanilla mob griefing rule rather than to a rule of its
      * own: a server that has turned block damage off has said so once, for every mob.
      */
@@ -305,8 +318,8 @@ public class HeatRayProjectile extends Projectile {
             nearby.hurtServer(server, this.damageSources().onFire(), this.mode.splash);
         }
 
-        server.explode(this.getOwner(), this.getX(), this.getY(), this.getZ(), this.mode.blast,
-                true, Level.ExplosionInteraction.MOB);
+        server.explode(this.getOwner(), null, SPARE_INVADERS, this.getX(), this.getY(), this.getZ(),
+                this.mode.blast, true, Level.ExplosionInteraction.MOB);
         server.gameEvent(GameEvent.EXPLODE, this.position(), GameEvent.Context.of(this));
     }
 

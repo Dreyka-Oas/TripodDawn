@@ -17,6 +17,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -1060,7 +1061,19 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         if (emerging()) {
             return false;
         }
+        // Nothing the invasion itself throws lands either, whoever threw it. A beam wide enough to
+        // take a house takes the leg standing beside it, and two machines that trade one shot are
+        // then each other's target for the rest of the night instead of anyone's problem.
+        if (invader(source.getEntity()) || invader(source.getDirectEntity())) {
+            return false;
+        }
         return super.hurtServer(server, source, amount);
+    }
+
+    /** A hull, not a body: nothing a bottle or a cloud carries has anywhere to go. */
+    @Override
+    public boolean canBeAffected(MobEffectInstance effect) {
+        return false;
     }
 
     @Override
