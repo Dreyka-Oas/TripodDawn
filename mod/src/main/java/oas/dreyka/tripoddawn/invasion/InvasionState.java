@@ -11,9 +11,10 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 /**
  * What the invasion remembers between two sessions, stored beside the world.
  *
- * <p>Five things, and they all exist so that something happens once instead of every tick: how many
- * days the invasion has been shifted by a command, which night has already been run, whether the two
- * one-off events have fired, and when the opening barrage runs out.
+ * <p>Six things, and they all exist so that something happens once instead of every tick: how many
+ * days the invasion has been shifted by a command, which night has already been run, which night has
+ * already had its weather drawn for, whether the two one-off events have fired, and when the opening
+ * barrage runs out.
  */
 public class InvasionState extends SavedData {
 
@@ -24,7 +25,8 @@ public class InvasionState extends SavedData {
             Codec.LONG.optionalFieldOf("last_night", -1L).forGetter(state -> state.lastNight),
             Codec.BOOL.optionalFieldOf("omen_done", false).forGetter(state -> state.omenDone),
             Codec.BOOL.optionalFieldOf("emperor_done", false).forGetter(state -> state.emperorDone),
-            Codec.LONG.optionalFieldOf("storm_until", 0L).forGetter(state -> state.stormUntil)
+            Codec.LONG.optionalFieldOf("storm_until", 0L).forGetter(state -> state.stormUntil),
+            Codec.LONG.optionalFieldOf("rolled_night", -1L).forGetter(state -> state.rolledNight)
     ).apply(instance, InvasionState::new));
 
     public static final SavedDataType<InvasionState> TYPE = new SavedDataType<>(
@@ -35,18 +37,20 @@ public class InvasionState extends SavedData {
     private boolean omenDone;
     private boolean emperorDone;
     private long stormUntil;
+    private long rolledNight;
 
     public InvasionState() {
-        this(0, -1L, false, false, 0L);
+        this(0, -1L, false, false, 0L, -1L);
     }
 
     private InvasionState(int dayShift, long lastNight, boolean omenDone, boolean emperorDone,
-                          long stormUntil) {
+                          long stormUntil, long rolledNight) {
         this.dayShift = dayShift;
         this.lastNight = lastNight;
         this.omenDone = omenDone;
         this.emperorDone = emperorDone;
         this.stormUntil = stormUntil;
+        this.rolledNight = rolledNight;
     }
 
     public static InvasionState of(ServerLevel level) {
@@ -70,6 +74,7 @@ public class InvasionState extends SavedData {
     public void setDay(ServerLevel level, long wanted) {
         this.dayShift = (int) (wanted - level.getDayTime() / TICKS_PER_DAY);
         this.lastNight = -1L;
+        this.rolledNight = -1L;
         setDirty();
     }
 
@@ -77,6 +82,7 @@ public class InvasionState extends SavedData {
     public void reset() {
         this.dayShift = 0;
         this.lastNight = -1L;
+        this.rolledNight = -1L;
         this.omenDone = false;
         this.emperorDone = false;
         this.stormUntil = 0L;
@@ -106,9 +112,30 @@ public class InvasionState extends SavedData {
         return true;
     }
 
+    /**
+     * True once per night, for the draw that decides whether the sky turns tonight.
+     *
+     * <p>Separate from {@link #claimNight}, since a night the draw turned down still has to be able
+     * to run later if the weather is put up by hand.
+     */
+    public boolean claimRoll(long day) {
+        if (this.rolledNight == day) {
+            return false;
+        }
+        this.rolledNight = day;
+        setDirty();
+        return true;
+    }
+
+    /** Whether the world is still waiting on its one opening night. */
+    public boolean pendingOmen() {
+        return !this.omenDone;
+    }
+
     /** Lets the next night run again even though it already has: what the test command needs. */
     public void forgetNight() {
         this.lastNight = -1L;
+        this.rolledNight = -1L;
         setDirty();
     }
 

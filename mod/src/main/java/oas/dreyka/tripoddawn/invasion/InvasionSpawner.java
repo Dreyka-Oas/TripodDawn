@@ -80,6 +80,15 @@ public final class InvasionSpawner {
     private static final int NIGHT_FROM = 13000;
     private static final int NIGHT_UNTIL = 23000;
 
+    /**
+     * One night in this many is one the invasion turns the sky for.
+     *
+     * <p>A wave every single night left nothing to a calendar past the first week, since the answer
+     * was always the same: it is dark, they are coming. Two quiet nights for one that is not gives a
+     * player somewhere to repair, and it gives the thunder something to say.
+     */
+    private static final int WAVE_ODDS = 3;
+
     public static void register() {
         ServerTickEvents.END_WORLD_TICK.register(InvasionSpawner::tick);
     }
@@ -101,9 +110,32 @@ public final class InvasionSpawner {
         if (targets(level).isEmpty()) {
             return;
         }
+        // The sky is the warning and the trigger both. Nothing walks out of a clear night, which
+        // leaves a player quiet nights to build in and makes the thunder mean something; and since
+        // the weather is all that is asked, putting a storm up by hand calls the wave down too.
+        if (!level.isThundering()) {
+            drawWeather(level, state, day);
+            return;
+        }
         if (state.claimNight(day)) {
             runNight(level, state, InvasionNight.of(day));
         }
+    }
+
+    /**
+     * Once a night, whether tonight is one the invasion turns the sky for.
+     *
+     * <p>The world's opening night is never left to the draw: a first night that came up clear would
+     * have a player finish the mod's introduction without seeing any of it.
+     */
+    private static void drawWeather(ServerLevel level, InvasionState state, long day) {
+        if (!state.claimRoll(day)) {
+            return;
+        }
+        if (!state.pendingOmen() && level.getRandom().nextInt(WAVE_ODDS) != 0) {
+            return;
+        }
+        level.setWeatherParameters(0, STORM_WEATHER_TICKS, true, true);
     }
 
     /**
