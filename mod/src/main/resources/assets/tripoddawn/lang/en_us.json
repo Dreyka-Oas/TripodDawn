@@ -7,16 +7,13 @@
   "entity.tripoddawn.titan": "Titan",
   "entity.tripoddawn.heat_ray": "Heat ray",
   "entity.tripoddawn.machine_part": "Machine",
-
   "item.tripoddawn.martian_spawn_egg": "Martian Spawn Egg",
   "item.tripoddawn.tripod_spawn_egg": "Tripod Spawn Egg",
   "item.tripoddawn.harvester_spawn_egg": "Harvester Spawn Egg",
   "item.tripoddawn.uberpod_spawn_egg": "Uberpod Spawn Egg",
   "item.tripoddawn.emperorpod_spawn_egg": "Emperorpod Spawn Egg",
   "item.tripoddawn.titan_spawn_egg": "Titan Spawn Egg",
-
   "effect.tripoddawn.earthquake": "Earthquake",
-
   "subtitles.tripoddawn.martian.growl": "Martian growls",
   "subtitles.tripoddawn.martian.hurt": "Martian hurts",
   "subtitles.tripoddawn.martian.death": "Martian dies",
@@ -27,9 +24,13 @@
   "subtitles.tripoddawn.machine.gas": "Gas escapes",
   "subtitles.tripoddawn.machine.engine": "Engine grinds",
   "subtitles.tripoddawn.machine.heat_ray": "Heat ray fires",
+  "subtitles.tripoddawn.machine.step": "A leg comes down",
+  "subtitles.tripoddawn.machine.step_far": "Something heavy walks",
+  "subtitles.tripoddawn.machine.stamp": "Machine stamps",
+  "subtitles.tripoddawn.machine.rumble": "The ground shakes",
+  "subtitles.tripoddawn.machine.deflect": "Shot skids off plating",
   "subtitles.tripoddawn.horn": "Horn sounds",
   "subtitles.tripoddawn.distant_horn": "A horn, far away",
-
   "tripoddawn.tier.omen": "the warning",
   "tripoddawn.tier.scouts": "scouts",
   "tripoddawn.tier.walkers": "walkers",
@@ -37,7 +38,6 @@
   "tripoddawn.tier.siege": "siege",
   "tripoddawn.tier.emperor": "the emperor",
   "tripoddawn.tier.beyond": "%1$s, rung +%2$s",
-
   "commands.tripoddawn.day.read": "Invasion day %1$s, stage: %2$s",
   "commands.tripoddawn.day.set": "Invasion moved to day %1$s, stage: %2$s",
   "commands.tripoddawn.reset": "Invasion back on the world clock, day %1$s, stage: %2$s",

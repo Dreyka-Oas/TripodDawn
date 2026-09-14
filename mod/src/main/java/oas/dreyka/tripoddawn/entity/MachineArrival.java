@@ -24,6 +24,9 @@ public final class MachineArrival {
     private static final int SHAKE_TICKS = 240;
     private static final int DUST_PERIOD = 2;
 
+    /** The length of the rumble clip, in ticks, so a repeat starts where the last one ran out. */
+    public static final int RUMBLE_TICKS = 80;
+
     /** Spread over the first eight seconds of the rise, the first one on the machine itself. */
     private static final int[] STRIKE_TICKS = {0, 35, 95, 160};
     private static final double STRIKE_SPREAD = 7.0;

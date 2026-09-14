@@ -8,6 +8,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
@@ -84,6 +85,27 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      */
     private static final double WEAPON_MIN_RANGE = 12.0;
 
+    /**
+     * Past this a footfall reaches a player as a roll off the horizon rather than as the foot itself.
+     */
+    private static final double STEP_NEAR = 64.0;
+
+    /** How much of its own drawn height a machine covers between two footfalls. */
+    private static final double STRIDE = 0.2;
+
+    /**
+     * Ticks of shake a footfall and a stamp hand out.
+     *
+     * <p>Both sit inside the effect's own taper, which is what makes a step land as a jolt that
+     * fades rather than as the flat shake an arrival gives: the strength a player feels is the
+     * duration measured against that taper, so a short one is a weak one and costs no second knob.
+     */
+    private static final int STEP_SHAKE_TICKS = 14;
+    private static final int STAMP_SHAKE_TICKS = 30;
+
+    /** How often a wreck lets go of a lungful while it burns. */
+    private static final int VENT_PERIOD = 130;
+
     private static final EntityDataAccessor<Byte> DATA_PHASE =
             SynchedEntityData.defineId(MachineEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Integer> DATA_PHASE_TICKS =
@@ -105,6 +127,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private int engineTicks;
     private HeatRayProjectile.Mode mode = HeatRayProjectile.Mode.CHARGED;
     private MachinePart[] parts;
+    private double strideLeft;
 
     protected MachineEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -298,8 +321,75 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             tickEmerge(server);
             return;
         }
-        tickEngine();
+        tickEngine(server);
+        tickStride(server);
         tickWeapon(server);
+    }
+
+    // ---- the ground under it ----
+
+    /**
+     * A footfall every time the machine has covered its own stride.
+     *
+     * <p>Counted off the ground covered rather than read from the walk animation, because the clip
+     * runs on the client and the sound, the shake and the dust all have to be decided where the
+     * machine is. It also keeps the cadence honest when a build walks at three quarters of the speed:
+     * fewer steps per second, same distance between two of them.
+     */
+    private void tickStride(ServerLevel server) {
+        double moved = Math.hypot(this.getX() - this.xo, this.getZ() - this.zo);
+        if (moved < 1.0e-3 || !this.onGround()) {
+            return;
+        }
+        this.strideLeft -= moved;
+        if (this.strideLeft > 0.0) {
+            return;
+        }
+        this.strideLeft = drawnHeight() * STRIDE;
+        footfall(server);
+    }
+
+    /**
+     * One leg landing: heard, felt, and seen in the dirt it throws.
+     *
+     * <p>A machine near enough to make out gets the foot itself; with nobody in that range the same
+     * step goes out as the far version, which has lost its top end and gained a tail. One sound per
+     * step either way, since two layers over the same footfall arrive as one muddy thump to whoever
+     * stands between the two ranges.
+     */
+    private void footfall(ServerLevel server) {
+        float scale = getScale();
+        Player nearest = server.getNearestPlayer(this, STEP_NEAR);
+        if (nearest == null) {
+            server.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    TripodDawnSounds.MACHINE_STEP_FAR, getSoundSource(), 9.0f, 1.0f / scale);
+            return;
+        }
+
+        // Pitch off the size and not off the build: the titan is the walker's own model grown by its
+        // scale attribute, so anything read from the scale covers every machine there is.
+        server.playSound(null, this.getX(), this.getY(), this.getZ(),
+                TripodDawnSounds.MACHINE_STEP, getSoundSource(), 5.0f,
+                (1.0f / scale) * (0.94f + this.random.nextFloat() * 0.12f));
+        TripodDawnParticles.send(server, TripodDawnParticles.DIRT_CLOUD,
+                this.getX(), this.getY() + 0.1, this.getZ(), 3,
+                this.getBbWidth() * 0.6, 0.15, this.getBbWidth() * 0.6, 0.01);
+        shakeAround(server, drawnHeight() * 0.75, STEP_SHAKE_TICKS);
+    }
+
+    /**
+     * Hands the shake to everyone standing close enough for the ground to move under them.
+     *
+     * <p>Reach comes from how tall the machine is drawn, so a titan is felt from further out than a
+     * scout without either of them carrying a number of its own.
+     */
+    private void shakeAround(ServerLevel server, double reach, int ticks) {
+        double square = reach * reach;
+        for (ServerPlayer player : server.players()) {
+            if (player.distanceToSqr(this) <= square) {
+                MachineArrival.shake(player, ticks);
+            }
+        }
     }
 
     // ---- where a shot lands ----
@@ -370,6 +460,14 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         this.setTarget(null);
         MachineArrival.lightning(server, this, t);
 
+        // The rumble is laid end to end for the whole rise, so the shake a player is already under
+        // has something to be the sound of. Retriggered on the clip's own length rather than looped,
+        // since Minecraft gives a positional sound no loop of its own.
+        if (t % MachineArrival.RUMBLE_TICKS == 0) {
+            server.playSound(null, this.getX(), this.getY(), this.getZ(),
+                    TripodDawnSounds.MACHINE_RUMBLE, getSoundSource(), 8.0f, 1.0f);
+        }
+
         // The soil stops flying a few seconds before the animation ends, so the last of it has burnt
         // out by the time the machine is standing and nothing is left lying around its feet.
         if (t < DUST_TICKS) {
@@ -393,12 +491,39 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * The engine is played from the machine rather than pushed to every player each tick. The source
      * mod broadcast a packet per living machine per tick to do the same job.
      */
-    private void tickEngine() {
+    private void tickEngine(ServerLevel server) {
         if (--this.engineTicks > 0) {
             return;
         }
         this.engineTicks = 100 + this.random.nextInt(60);
-        playSound(TripodDawnSounds.MACHINE_ENGINE, 6.0f, 0.9f + this.random.nextFloat() * 0.2f);
+
+        // The far loop had been registered and never played. Which one goes out is the same question
+        // the footfall asks, and it gets the same answer: the near sound for a machine somebody can
+        // make out, the worn one for a shape on the horizon.
+        boolean close = server.getNearestPlayer(this, STEP_NEAR) != null;
+        playSound(close ? TripodDawnSounds.MACHINE_ENGINE : TripodDawnSounds.MACHINE_ENGINE_FAR,
+                close ? 6.0f : 10.0f,
+                (1.0f / getScale()) * (0.9f + this.random.nextFloat() * 0.2f));
+    }
+
+    /**
+     * The foot coming down on whatever was standing under it.
+     *
+     * <p>The stamp had been the one thing a machine did with no sound on it at all: twelve blocks in
+     * and the scene went quiet, which read as the machine losing interest rather than as it changing
+     * weapon.
+     */
+    @Override
+    public boolean doHurtTarget(ServerLevel server, Entity target) {
+        if (!super.doHurtTarget(server, target)) {
+            return false;
+        }
+        server.playSound(null, this.getX(), this.getY(), this.getZ(),
+                TripodDawnSounds.MACHINE_STAMP, getSoundSource(), 7.0f, 1.0f / getScale());
+        TripodDawnParticles.send(server, TripodDawnParticles.DIRT_CLOUD,
+                target.getX(), target.getY() + 0.1, target.getZ(), 8, 1.2, 0.3, 1.2, 0.03);
+        shakeAround(server, drawnHeight(), STAMP_SHAKE_TICKS);
+        return true;
     }
 
     private void tickWeapon(ServerLevel server) {
@@ -444,11 +569,33 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     @Override
     protected void tickDeath() {
         this.deathTime++;
-        if (this.deathTime < WRECK_TICKS || !(this.level() instanceof ServerLevel server)) {
+        if (!(this.level() instanceof ServerLevel server)) {
+            return;
+        }
+        if (this.deathTime < WRECK_TICKS) {
+            vent(server);
             return;
         }
         scuttle(server);
         this.remove(RemovalReason.KILLED);
+    }
+
+    /**
+     * What a wreck does with its five minutes.
+     *
+     * <p>The gas sound had been registered and never played, and a machine lying in a field in total
+     * silence reads as a prop. It lets go of a lungful every few seconds instead, which also warns
+     * whoever walks up to it that the thing has not finished.
+     */
+    private void vent(ServerLevel server) {
+        if (this.deathTime % VENT_PERIOD != 0) {
+            return;
+        }
+        server.playSound(null, this.getX(), this.getY(), this.getZ(),
+                TripodDawnSounds.MACHINE_GAS, getSoundSource(), 3.0f,
+                0.75f + this.random.nextFloat() * 0.3f);
+        TripodDawnParticles.send(server, ParticleTypes.LARGE_SMOKE,
+                this.getX(), this.getY() + 1.0, this.getZ(), 6, 1.6, 0.8, 1.6, 0.02);
     }
 
     /**

@@ -43,6 +43,30 @@
     "subtitle": "subtitles.tripoddawn.machine.heat_ray",
     "sounds": [{ "name": "tripoddawn:machine_heat_ray" }]
   },
+  "entity.machine.step": {
+    "subtitle": "subtitles.tripoddawn.machine.step",
+    "sounds": [
+      { "name": "tripoddawn:machine_step_1" },
+      { "name": "tripoddawn:machine_step_2" },
+      { "name": "tripoddawn:machine_step_3" }
+    ]
+  },
+  "entity.machine.step_far": {
+    "subtitle": "subtitles.tripoddawn.machine.step_far",
+    "sounds": [{ "name": "tripoddawn:machine_step_far" }]
+  },
+  "entity.machine.stamp": {
+    "subtitle": "subtitles.tripoddawn.machine.stamp",
+    "sounds": [{ "name": "tripoddawn:machine_stamp" }]
+  },
+  "entity.machine.rumble": {
+    "subtitle": "subtitles.tripoddawn.machine.rumble",
+    "sounds": [{ "name": "tripoddawn:machine_rumble" }]
+  },
+  "entity.machine.deflect": {
+    "subtitle": "subtitles.tripoddawn.machine.deflect",
+    "sounds": [{ "name": "tripoddawn:machine_deflect" }]
+  },
   "entity.tripod.horn": {
     "subtitle": "subtitles.tripoddawn.horn",
     "sounds": [{ "name": "tripoddawn:tripod_horn" }]

@@ -1,5 +1,7 @@
 package oas.dreyka.tripoddawn.entity;
 
+import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
+
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -41,29 +43,42 @@ public class MachinePart extends Entity {
          * <p>Four fifths of the machine and wide enough to hold the splay: a walker's feet are
          * sixteen blocks apart on the ground, which is nearly five times the box it collides with.
          */
-        LEGS(4.0f, 0.00f, 0.80f, 0.6f),
+        LEGS(4.0f, 0.00f, 0.80f, 0.6f, 0.75f),
 
         /** The hull. What a machine is, as far as damage is concerned. */
-        HULL(2.9f, 0.76f, 0.92f, 1.0f),
+        HULL(2.9f, 0.76f, 0.92f, 1.0f, 1.05f),
 
         /** The hood, where the ray comes out and where the armour cannot be. */
-        HOOD(1.9f, 0.88f, 1.03f, 2.5f);
+        HOOD(1.9f, 0.88f, 1.03f, 2.5f, 1.55f);
 
         private final float width;
         private final float bottom;
         private final float top;
         private final float worth;
+        private final float pitch;
 
-        Zone(float width, float bottom, float top, float worth) {
+        Zone(float width, float bottom, float top, float worth, float pitch) {
             this.width = width;
             this.bottom = bottom;
             this.top = top;
             this.worth = worth;
+            this.pitch = pitch;
         }
 
         /** What a hit here is multiplied by before it reaches the machine. */
         public float worth() {
             return this.worth;
+        }
+
+        /**
+         * How the metal rings here.
+         *
+         * <p>A thick strut answers low and the thin plate over the hood answers high, which is the
+         * one cue telling a player their arrow found the weak point. Nothing else says so: no number
+         * comes up and the machine's own hurt sound is the same wherever it was hit.
+         */
+        public float pitch() {
+            return this.pitch;
         }
     }
 
@@ -154,7 +169,15 @@ public class MachinePart extends Entity {
                 || MachineEntity.invader(source.getDirectEntity())) {
             return false;
         }
-        return this.owner.hurtServer(server, source, amount * this.zone.worth);
+        if (!this.owner.hurtServer(server, source, amount * this.zone.worth)) {
+            return false;
+        }
+        // Played from the slab and not from the machine, so the ring comes from the height the shot
+        // landed at. On a forty block walker the difference between the shins and the hood is most
+        // of the distance a sound has to travel to be placed at all.
+        server.playSound(null, this.getX(), this.getY() + this.getBbHeight() * 0.5, this.getZ(),
+                TripodDawnSounds.MACHINE_DEFLECT, this.owner.getSoundSource(), 2.5f, this.zone.pitch);
+        return true;
     }
 
     /** A slab is the machine as far as the game is concerned, so a pick lands on the machine. */

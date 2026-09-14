@@ -29,6 +29,21 @@ public final class TripodDawnSounds {
     public static final SoundEvent MACHINE_ENGINE = register("entity.machine.engine");
     public static final SoundEvent MACHINE_ENGINE_FAR = register("entity.machine.engine_far");
 
+    /**
+     * The ground: a leg landing, the same leg heard from far enough away that only the low end
+     * arrives, the foot coming down on something, and the bed under a shake.
+     *
+     * <p>None of these came out of the source mod, which had nothing at all under its machines.
+     * They are drawn by {@code scripts/steps.py}.
+     */
+    public static final SoundEvent MACHINE_STEP = register("entity.machine.step");
+    public static final SoundEvent MACHINE_STEP_FAR = register("entity.machine.step_far");
+    public static final SoundEvent MACHINE_STAMP = register("entity.machine.stamp");
+    public static final SoundEvent MACHINE_RUMBLE = register("entity.machine.rumble");
+
+    /** A shot skidding off plating, pitched by the zone it landed on. */
+    public static final SoundEvent MACHINE_DEFLECT = register("entity.machine.deflect");
+
     public static final SoundEvent TRIPOD_HORN = register("entity.tripod.horn");
     public static final SoundEvent TRIPOD_HORN_BROKEN = register("entity.tripod.horn_broken");
     public static final SoundEvent UBERPOD_HORN = register("entity.uberpod.horn");

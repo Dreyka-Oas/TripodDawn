@@ -7,16 +7,13 @@
   "entity.tripoddawn.titan": "Titan",
   "entity.tripoddawn.heat_ray": "Rayon ardent",
   "entity.tripoddawn.machine_part": "Machine",
-
   "item.tripoddawn.martian_spawn_egg": "Œuf d'apparition de martien",
   "item.tripoddawn.tripod_spawn_egg": "Œuf d'apparition de tripode",
   "item.tripoddawn.harvester_spawn_egg": "Œuf d'apparition de récolteur",
   "item.tripoddawn.uberpod_spawn_egg": "Œuf d'apparition d'uberpod",
   "item.tripoddawn.emperorpod_spawn_egg": "Œuf d'apparition d'emperorpod",
   "item.tripoddawn.titan_spawn_egg": "Œuf d'apparition de titan",
-
   "effect.tripoddawn.earthquake": "Secousse",
-
   "subtitles.tripoddawn.martian.growl": "Grognement de martien",
   "subtitles.tripoddawn.martian.hurt": "Martien blessé",
   "subtitles.tripoddawn.martian.death": "Mort d'un martien",
@@ -27,9 +24,13 @@
   "subtitles.tripoddawn.machine.gas": "Fuite de gaz",
   "subtitles.tripoddawn.machine.engine": "Grondement de moteur",
   "subtitles.tripoddawn.machine.heat_ray": "Tir du rayon ardent",
+  "subtitles.tripoddawn.machine.step": "Une patte se pose",
+  "subtitles.tripoddawn.machine.step_far": "Quelque chose de lourd marche",
+  "subtitles.tripoddawn.machine.stamp": "Piétinement d'une machine",
+  "subtitles.tripoddawn.machine.rumble": "Le sol tremble",
+  "subtitles.tripoddawn.machine.deflect": "Tir ricoche sur le blindage",
   "subtitles.tripoddawn.horn": "Corne de machine",
   "subtitles.tripoddawn.distant_horn": "Une corne, au loin",
-
   "tripoddawn.tier.omen": "l'avertissement",
   "tripoddawn.tier.scouts": "les éclaireurs",
   "tripoddawn.tier.walkers": "les marcheurs",
@@ -37,7 +38,6 @@
   "tripoddawn.tier.siege": "le siège",
   "tripoddawn.tier.emperor": "l'empereur",
   "tripoddawn.tier.beyond": "%1$s, échelon +%2$s",
-
   "commands.tripoddawn.day.read": "Invasion au jour %1$s, étape : %2$s",
   "commands.tripoddawn.day.set": "Invasion déplacée au jour %1$s, étape : %2$s",
   "commands.tripoddawn.reset": "Invasion recalée sur l'horloge du monde, jour %1$s, étape : %2$s",
