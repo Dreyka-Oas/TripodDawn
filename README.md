@@ -39,8 +39,8 @@ The table stops at the emperor because there is no eighth species to open. The c
 with it: from day 30 on, every ten days adds a rung, and a rung is more on foot, more a night, more
 standing and more sky. Day 100 sends twenty-two martians and twelve machines at one player. The climb
 flattens at 32 martians, 12 a night, 24 standing and 160 strikes, and that ceiling is a tick budget
-rather than a difficulty decision: a machine walks a twenty-four block box through the world and the
-server checks every block of it.
+rather than a difficulty decision: twenty-four machines walking is twenty-four of everything the
+server does per machine.
 
 Nothing the invasion does is written in the chat, and nothing wears a bar at the top of the screen,
 the emperorpod and the titan included. A named health bar is writing too, and it would give away that
@@ -89,11 +89,25 @@ zombies off a roof would be helping rather than hunting.
 | Emperorpod | 44 | 450 | 25 | 60 | heat ray, one per world |
 | Titan | 68 | 900 | 30 | 70 | heat ray, rarely, from day 45 |
 
-Height is how tall the thing is drawn. The box it collides and paths with is smaller, twenty-four
+Height is how tall the thing is drawn. The box it collides with is the legs and nothing else, six
 blocks for a walker, and that is on purpose: a box the size of the model would have the server test
 forty blocks of empty sky under every machine standing, every tick, and would wedge one under any
 canopy tall enough to clear its hood. What a shot lands on is cut from the drawn height instead, so
 nothing you can see is out of reach.
+
+That cut is fourteen boxes on a walker, not three, and the reason is a rule of the game rather than a
+choice about aiming. Whatever box an entity carries, it is only found by a shot that passes within
+four blocks of the position it stands at, so one box thirty-two blocks tall answered arrows around
+the feet and let everything above them through, and one box fourteen blocks wide answered from the
+east and not from the west. Each box now stays inside that reach. Where the arrow lands still decides
+what it is worth: the legs take three fifths of it, the hull takes all of it, the hood takes two and
+a half times.
+
+A machine does not look for a way around anything, either. It picks a direction and walks, stepping
+up to three blocks as it goes. That is what a thing taller than the trees would do, and it is also
+the only version the server can afford: asking the game for a route costs one test per block the
+walker fills, and a tall box spent more time deciding where to put its feet than the rest of the
+invasion put together.
 
 ### Three walkers out of the same hole
 
@@ -159,13 +173,13 @@ worth a little over half. The hood is where the ray comes out, which is the one 
 cannot be, and getting anything up there is the problem: shoot it off a hill, off a tower, or with a
 bow from a long way back. Killing one drops nothing and gives experience.
 
-A machine that dies falls over and stays on the ground as a wreck, burning, for five minutes. Then it
-scuttles itself: a blast the size of three sticks of TNT, a crater, and smoke over the spot. A wreck
-that simply blinked out at the end of its five minutes would read as the game forgetting it, and the
-blast also means the thing is dangerous right up to the end. It lights no fire, unlike the ray, since
-it goes off long after the fight and usually next to wherever you went afterwards. It obeys the
-vanilla mob griefing rule like everything else this mod sets off, so a server that turned block damage
-off has already said no to the crater.
+A machine that dies takes five seconds to fall, lies there venting for three more, and then scuttles
+itself: a blast the size of three sticks of TNT, a crater, and smoke over the spot. Eight seconds,
+because the kill and the crater should be the same moment. A wreck that simply blinked out would read
+as the game forgetting it, and a wreck left lying turns a siege night into a scrapyard you cannot walk
+through. It lights no fire, unlike the ray, since it goes off next to whoever just killed it. It obeys
+the vanilla mob griefing rule like everything else this mod sets off, so a server that turned block
+damage off has already said no to the crater.
 
 ### What you hear, and what you feel
 
