@@ -31,7 +31,6 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gamerules.GameRules;
@@ -39,7 +38,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -217,11 +215,40 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * thousand block updates: the tower comes down over a second or two instead, which is also how
      * it should look.
      */
-    private static final int CRUSH_PERIOD = 4;
-    private static final int CRUSH_BUDGET = 64;
+    private static final int CRUSH_PERIOD = 2;
+    private static final int CRUSH_BUDGET = 128;
 
     /** How far it has to have travelled since the last pass for there to be anything new inside it. */
     private static final double CRUSH_STEP = 0.3;
+
+    /**
+     * How often a machine that is going nowhere looks around anyway.
+     *
+     * <p>Standing still is the cheap case and skipping it is most of what makes the sweep affordable,
+     * but a player who walls one in while it waits should not end up with a machine in a box.
+     */
+    private static final int CRUSH_IDLE = 40;
+
+    /**
+     * How much room the sweep takes around the metal, in blocks.
+     *
+     * <p>The hit boxes are columns standing where the legs rest, and the clip swings those legs well
+     * past them: measured on the boxes alone, a wall comes down only once the shin is already buried
+     * in it. The margin is the gap between the pose the boxes describe and the pose the player sees.
+     */
+    private static final double CRUSH_MARGIN = 1.0;
+
+    /**
+     * How many ticks of travel the sweep clears ahead of itself.
+     *
+     * <p>Blocks break the pass after the metal arrives, which at this size is a leg visibly inside a
+     * house for a tenth of a second. Reaching along the heading instead has the wall opening as the
+     * machine comes, which is the order anyone watching expects.
+     */
+    private static final int CRUSH_LOOKAHEAD = 10;
+
+    /** How finely the line from muzzle to target is walked when looking for something opaque. */
+    private static final double SIGHT_STEP = 0.5;
 
     /**
      * How far ahead the ground is felt for water, in blocks.
@@ -624,7 +651,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
 
         private HuntLifeGoal(MachineEntity machine) {
             super(machine, LivingEntity.class, 20, false, false,
-                    (living, level) -> !(living instanceof Monster) && !(living instanceof Player));
+                    (living, level) -> !(living instanceof Monster) && !(living instanceof Player)
+                            && machine.clearShot(living));
+            // The vanilla sight test counts a pane of glass as a wall. A machine that melts the glass
+            // and everything behind it reads the greenhouse the same way the player does, so the one
+            // test it keeps is the one that decides whether it can fire.
+            this.targetConditions.ignoreLineOfSight();
         }
 
         @Override
@@ -737,9 +769,10 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * <p>A leg is a column of metal thirty blocks long and the hull is wider than a house, so a wall
      * sharing that space reads as the machine being a ghost. The wall goes instead.
      *
-     * <p>The ground it stands on is kept. The columns reach down to the foot, and clearing at that
-     * level would have a walker dig its own trench across the map rather than cross it, so the sweep
-     * starts one block above where the machine stands: that is a house and not a road.
+     * <p>The ground it stands on is kept, and only that. The sweep reaches down to the layer the
+     * feet occupy and stops at the one underneath, so a walker crossing a field leaves the soil
+     * alone while the bottom course of a wall goes with the rest of it. Starting a block higher left
+     * that course standing and the legs walking through it, which is the ghost again at knee height.
      */
     private void tickCrush(ServerLevel server) {
         if (this.tickCount % CRUSH_PERIOD != 0 || this.parts == null
@@ -752,17 +785,26 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         // walks through houses would be held up by one.
         boolean settled = this.crushAnchor != null
                 && this.crushAnchor.distanceToSqr(position()) < CRUSH_STEP * CRUSH_STEP;
-        if (settled && !getMoveControl().hasWanted()) {
+        if (settled && !getMoveControl().hasWanted() && this.tickCount % CRUSH_IDLE != 0) {
             return;
         }
         this.crushAnchor = position();
 
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        int ground = Mth.floor(getY()) + 1;
+        // Rounded rather than floored. A machine at rest sits a hair under the block top often
+        // enough, and a plain floor reads that hair as one layer lower: the sweep then takes the
+        // floor out, the machine drops onto the next one, and it digs itself a shaft standing still.
+        int ground = Mth.floor(getY() + 0.5);
         int left = CRUSH_BUDGET;
+        Vec3 ahead = getDeltaMovement().scale(CRUSH_LOOKAHEAD);
+        left = crushStance(server, pos, ground, ahead, left);
         for (MachinePart part : this.parts) {
-            // Pulled in, so a block the metal merely brushes past is left standing.
-            AABB box = part.getBoundingBox().deflate(0.2);
+            // The legs are covered by the stance below and would only pay for the same air twice.
+            if (part.zone() == MachinePart.Zone.LEGS) {
+                continue;
+            }
+            AABB box = part.getBoundingBox().inflate(CRUSH_MARGIN)
+                    .expandTowards(ahead.x, 0.0, ahead.z);
             int lowest = Math.max(ground, Mth.floor(box.minY));
             for (int y = lowest; y <= Mth.floor(box.maxY) && left > 0; y++) {
                 for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX) && left > 0; x++) {
@@ -774,6 +816,41 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
                 }
             }
         }
+    }
+
+    /**
+     * Clears everything the legs can be standing in, which is more than the columns say.
+     *
+     * <p>The hit columns stand where a leg rests. The clip swings that leg several blocks out of its
+     * column and back on every stride, and a wall cleared to the column alone is a wall the metal
+     * visibly passes through for most of the step. So the ground the machine straddles goes as one
+     * shape instead: a cone from the feet up to the hip, as wide at the bottom as the stance is and
+     * narrowing the way the legs do, leaned forward by however far the thing will have walked before
+     * the next pass.
+     */
+    private int crushStance(ServerLevel server, BlockPos.MutableBlockPos pos, int ground,
+                            Vec3 ahead, int budget) {
+        double tall = drawnHeight();
+        double lead = Math.sqrt(ahead.x * ahead.x + ahead.z * ahead.z);
+        double cx = getX() + ahead.x * 0.5;
+        double cz = getZ() + ahead.z * 0.5;
+        int top = ground + Mth.ceil(tall * LEG_TOP);
+        int left = budget;
+        for (int y = ground; y <= top && left > 0; y++) {
+            double reach = tall * LEG_REACH * lean((float) ((y - ground) / tall))
+                    + CRUSH_MARGIN + lead * 0.5;
+            double square = reach * reach;
+            for (int x = Mth.floor(cx - reach); x <= Mth.floor(cx + reach) && left > 0; x++) {
+                double dx = x + 0.5 - cx;
+                for (int z = Mth.floor(cz - reach); z <= Mth.floor(cz + reach) && left > 0; z++) {
+                    double dz = z + 0.5 - cz;
+                    if (dx * dx + dz * dz <= square && crush(server, pos.set(x, y, z))) {
+                        left--;
+                    }
+                }
+            }
+        }
+        return left;
     }
 
     /** True when something was standing there and is not any more. */
@@ -1094,9 +1171,31 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * shoot at.
      */
     private boolean clearShot(LivingEntity target) {
-        ClipContext trace = new ClipContext(muzzle(true), target.getEyePosition(),
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this);
-        return level().clip(trace).getType() == HitResult.Type.MISS;
+        Vec3 from = muzzle(true);
+        Vec3 to = target.getEyePosition();
+        Vec3 delta = to.subtract(from);
+        double reach = delta.length();
+        if (reach < 1.0e-3) {
+            return true;
+        }
+        // Only an opaque block stops the beam. A greenhouse, a window or a canopy of leaves is
+        // something the machine can see a target through, and the vanilla trace treats every one of
+        // them as a wall: a player behind glass was invisible to a thing that could melt the glass.
+        int steps = Mth.ceil(reach / SIGHT_STEP);
+        Vec3 step = delta.scale(SIGHT_STEP / reach);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        double x = from.x;
+        double y = from.y;
+        double z = from.z;
+        for (int i = 1; i < steps; i++) {
+            x += step.x;
+            y += step.y;
+            z += step.z;
+            if (level().getBlockState(pos.set(Mth.floor(x), Mth.floor(y), Mth.floor(z))).canOcclude()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Which of the shots this machine gathers at that distance, squared. */
