@@ -3,6 +3,7 @@ package oas.dreyka.tripoddawn.entity;
 import oas.dreyka.tripoddawn.particle.TripodDawnParticles;
 import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -31,6 +32,8 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -205,6 +208,19 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      */
     private static final float LEG_OFFSET = 180.0f;
 
+    /**
+     * How often the machine clears its own volume of blocks, and how many go in one pass.
+     *
+     * <p>The budget is what keeps a walker stepping into a tower block from costing one tick a
+     * thousand block updates: the tower comes down over a second or two instead, which is also how
+     * it should look.
+     */
+    private static final int CRUSH_PERIOD = 4;
+    private static final int CRUSH_BUDGET = 64;
+
+    /** How far it has to have travelled since the last pass for there to be anything new inside it. */
+    private static final double CRUSH_STEP = 0.3;
+
     /** Well inside the ticket's own timeout, so the ground never lapses under a walking machine. */
     private static final int TICKET_PERIOD = 20;
 
@@ -233,6 +249,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private HeatRayProjectile.Mode mode = HeatRayProjectile.Mode.CHARGED;
     private MachinePart[] parts;
     private Float emergeFacing;
+    private Vec3 crushAnchor;
     private Vec3 partAnchor;
     private float partFacing;
     private float partTall;
@@ -611,6 +628,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         }
         tickEngine(server);
         tickStride(server);
+        tickCrush(server);
         tickWeapon(server);
     }
 
@@ -691,6 +709,60 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
                 this.getX(), this.getY() + 0.1, this.getZ(), 3,
                 this.getBbWidth() * 0.6, 0.15, this.getBbWidth() * 0.6, 0.01);
         shakeAround(server, drawnHeight() * 0.75, STEP_SHAKE_TICKS);
+    }
+
+    /**
+     * What the machine walks through.
+     *
+     * <p>A leg is a column of metal thirty blocks long and the hull is wider than a house, so a wall
+     * sharing that space reads as the machine being a ghost. The wall goes instead.
+     *
+     * <p>The ground it stands on is kept. The columns reach down to the foot, and clearing at that
+     * level would have a walker dig its own trench across the map rather than cross it, so the sweep
+     * starts one block above where the machine stands: that is a house and not a road.
+     */
+    private void tickCrush(ServerLevel server) {
+        if (this.tickCount % CRUSH_PERIOD != 0 || this.parts == null
+                || !server.getGameRules().get(GameRules.MOB_GRIEFING)) {
+            return;
+        }
+        // The scan is the whole cost here, and nothing new stands inside a machine that has not moved.
+        if (this.crushAnchor != null
+                && this.crushAnchor.distanceToSqr(position()) < CRUSH_STEP * CRUSH_STEP) {
+            return;
+        }
+        this.crushAnchor = position();
+
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int ground = Mth.floor(getY()) + 1;
+        int left = CRUSH_BUDGET;
+        for (MachinePart part : this.parts) {
+            // Pulled in, so a block the metal merely brushes past is left standing.
+            AABB box = part.getBoundingBox().deflate(0.2);
+            int lowest = Math.max(ground, Mth.floor(box.minY));
+            for (int y = lowest; y <= Mth.floor(box.maxY) && left > 0; y++) {
+                for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX) && left > 0; x++) {
+                    for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ) && left > 0; z++) {
+                        if (crush(server, pos.set(x, y, z))) {
+                            left--;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** True when something was standing there and is not any more. */
+    private boolean crush(ServerLevel server, BlockPos pos) {
+        BlockState state = server.getBlockState(pos);
+        // A negative hardness is what bedrock, a barrier and the end portal all carry.
+        if (state.isAir() || !state.getFluidState().isEmpty()
+                || state.getDestroySpeed(server, pos) < 0.0f) {
+            return false;
+        }
+        // Nothing drops: a city block's worth of items on the ground is a bigger problem for the
+        // server than the machine that made them, and a wreck is what this is supposed to leave.
+        return server.destroyBlock(pos, false, this);
     }
 
     /**
