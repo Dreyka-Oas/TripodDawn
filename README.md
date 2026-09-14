@@ -87,7 +87,7 @@ zombies off a roof would be helping rather than hunting.
 | Harvester | 40 | 180 | 15 | 30 | heat ray |
 | Uberpod | 44 | 280 | 25 | 40 | heat ray |
 | Emperorpod | 44 | 450 | 25 | 60 | heat ray, one per world |
-| Titan | 68 | 900 | 30 | 70 | heat ray, rarely, from day 45 |
+| Titan | 104 | 900 | 30 | 70 | heat ray, rarely, from day 45 |
 
 Height is how tall the thing is drawn. The box it collides with is the legs and nothing else, six
 blocks for a walker, and that is on purpose: a box the size of the model would have the server test
@@ -126,7 +126,8 @@ Which one turns up is a weight rather than a rung, so the mix shifts instead of 
 heavies start, one roll in four, and half the rolls are line machines. Past day 40 it is heavies and
 line machines, and the scouts have stopped coming.
 
-The titan is the one that is not a tripod. Sixty-eight blocks, nearly twice the line machine, and the
+The titan is the one that is not a tripod. A hundred and four blocks, two and a half times the line
+machine, tall enough that a walker beside it reads as a fence post, and the
 first thing you learn about it is that it is on the horizon and the trees are not. It comes up between 72 and 112 blocks out, one night in six from day 45, and never
 two at a time. Nothing announces it: no bar at the top of the screen, no line in the chat, the same
 silence as everything else here.
