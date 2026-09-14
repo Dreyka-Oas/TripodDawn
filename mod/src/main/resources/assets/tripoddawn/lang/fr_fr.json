@@ -42,6 +42,7 @@
   "commands.tripoddawn.day.set": "Invasion déplacée au jour %1$s, étape : %2$s",
   "commands.tripoddawn.reset": "Invasion recalée sur l'horloge du monde, jour %1$s, étape : %2$s",
   "commands.tripoddawn.wave": "%1$s arrivées",
+  "commands.tripoddawn.lineup": "%1$s machines immobiles",
   "commands.tripoddawn.spawn": "%1$s posé en %2$s, %3$s",
   "commands.tripoddawn.spawn.no_player": "Commande à lancer depuis un joueur, il lui faut un point de départ",
   "commands.tripoddawn.spawn.no_room": "Aucun terrain assez dégagé dans les environs"

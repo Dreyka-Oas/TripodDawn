@@ -42,6 +42,7 @@
   "commands.tripoddawn.day.set": "Invasion moved to day %1$s, stage: %2$s",
   "commands.tripoddawn.reset": "Invasion back on the world clock, day %1$s, stage: %2$s",
   "commands.tripoddawn.wave": "%1$s arrivals",
+  "commands.tripoddawn.lineup": "%1$s machines standing, all of them still",
   "commands.tripoddawn.spawn": "%1$s placed at %2$s, %3$s",
   "commands.tripoddawn.spawn.no_player": "This one has to be run by a player, it needs somewhere to aim from",
   "commands.tripoddawn.spawn.no_room": "No ground clear enough anywhere nearby"
