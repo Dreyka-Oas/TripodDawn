@@ -27,6 +27,12 @@ import net.minecraft.world.level.storage.ValueOutput;
  * <p>Boxes stacked rather than placed around the model, because a slab centred on the machine needs
  * no rotating: it reads the same from every angle, which is what a player firing at a thing that
  * walks in circles actually needs.
+ *
+ * <p>Three zones, but more than three slabs. The game finds an entity by the chunk section its
+ * position falls in, widened by four blocks, and never by the box it carries: a single slab covering
+ * a walker's thirty-two blocks of legs answers arrows over the fifteen nearest its feet and lets
+ * everything above that through. {@link MachineEntity} cuts each zone into slabs short enough to sit
+ * inside that reach.
  */
 public class MachinePart extends Entity {
 
@@ -65,6 +71,11 @@ public class MachinePart extends Entity {
             this.pitch = pitch;
         }
 
+        /** What fraction of the drawn height this zone covers. */
+        public float span() {
+            return this.top - this.bottom;
+        }
+
         /** What a hit here is multiplied by before it reaches the machine. */
         public float worth() {
             return this.worth;
@@ -91,16 +102,21 @@ public class MachinePart extends Entity {
 
     private MachineEntity owner;
     private Zone zone = Zone.HULL;
+    private float bottom;
+    private float top = 1.0f;
 
     public MachinePart(EntityType<? extends MachinePart> type, Level level) {
         super(type, level);
         this.noPhysics = true;
     }
 
-    public MachinePart(MachineEntity owner, Zone zone) {
+    /** One slab of {@code zone}, the {@code index}th of the {@code count} it was cut into. */
+    public MachinePart(MachineEntity owner, Zone zone, int index, int count) {
         this(TripodDawnEntities.MACHINE_PART, owner.level());
         this.owner = owner;
         this.zone = zone;
+        this.bottom = zone.bottom + zone.span() * index / count;
+        this.top = zone.bottom + zone.span() * (index + 1) / count;
         follow();
     }
 
@@ -120,13 +136,33 @@ public class MachinePart extends Entity {
         // Measured every tick rather than once at birth. A machine's size comes from its scale
         // attribute, and an attribute carries no change event for the value it was created with, so
         // the first tick of a machine bigger than its registered size still reports the registered
-        // one: a forty block titan would wear a twenty-four block machine's boxes for good.
+        // one: a forty block titan would wear a walker's boxes for good.
         float tall = this.owner.drawnHeight();
-        this.entityData.set(DATA_WIDTH, this.owner.getBbWidth() * this.zone.width);
-        this.entityData.set(DATA_HEIGHT, tall * (this.zone.top - this.zone.bottom));
+        // Capped for the same reason the slabs are stacked at all. The reach of a search around a
+        // slab's own position is four blocks, so a box wider than that on either side answers a shot
+        // coming from one direction and lets the same shot through from the other: the walker was
+        // hittable from the east and transparent from the west at the waist.
+        float width = Math.min(this.owner.getBbWidth() * this.zone.width, MachineEntity.SLAB_WIDTH);
+        float height = tall * (this.top - this.bottom);
+        // The synched-data callback that turns these two numbers into a box only fires on a client,
+        // where the packet arrives, so the server has to rebuild the box itself.
+        if (this.entityData.get(DATA_WIDTH) != width || this.entityData.get(DATA_HEIGHT) != height) {
+            this.entityData.set(DATA_WIDTH, width);
+            this.entityData.set(DATA_HEIGHT, height);
+            refreshDimensions();
+        }
         this.setPos(this.owner.getX(),
-                this.owner.getY() + tall * this.zone.bottom,
+                this.owner.getY() + tall * this.bottom,
                 this.owner.getZ());
+    }
+
+    /**
+     * Nothing of its own. The machine places it, and the rest of what an entity does every tick is
+     * work a slab has no use for: the block scan alone would walk every block inside a box fourteen
+     * wide, for every slab of every machine standing.
+     */
+    @Override
+    public void tick() {
     }
 
     @Override

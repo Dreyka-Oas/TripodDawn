@@ -37,6 +37,7 @@ public class TitanEntity extends MachineEntity {
                 .add(Attributes.ARMOR, 30.0)
                 .add(Attributes.ATTACK_DAMAGE, 70.0)
                 .add(Attributes.FOLLOW_RANGE, HUNT_RANGE)
+                .add(Attributes.STEP_HEIGHT, STEP_UP)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 10.0)
                 .add(Attributes.ATTACK_KNOCKBACK, 1.0)
                 .add(Attributes.SCALE, SCALE);

@@ -38,13 +38,19 @@ public final class TripodDawnEntities {
                     .clientTrackingRange(8)
                     .build(MARTIAN_KEY));
 
-    // A walker is twenty-four blocks tall, so a player sees it long before the chunk it stands in is
+    // A walker is drawn forty blocks tall, so a player sees it long before the chunk it stands in is
     // anywhere near them. The tracking range is what decides whether it is there at all.
+    //
+    // The box is six, which is the legs and nothing above them. It used to be twenty-four, and that
+    // was two problems in one. A shot already lands on the three slabs cut from the drawn height, so
+    // the tall box was a fourth box sitting inside the first with nothing to do; and the cost of
+    // finding a way anywhere is paid per block a walker fills, so those eighteen blocks of nothing
+    // were most of the server time an invasion spent.
     public static final EntityType<TripodEntity> TRIPOD = Registry.register(
             BuiltInRegistries.ENTITY_TYPE,
             TRIPOD_KEY,
             EntityType.Builder.of(TripodEntity::new, MobCategory.MONSTER)
-                    .sized(3.5f, 24.0f)
+                    .sized(3.5f, 6.0f)
                     .clientTrackingRange(16)
                     .fireImmune()
                     .build(TRIPOD_KEY));
@@ -53,7 +59,7 @@ public final class TripodDawnEntities {
             BuiltInRegistries.ENTITY_TYPE,
             HARVESTER_KEY,
             EntityType.Builder.of(HarvesterEntity::new, MobCategory.MONSTER)
-                    .sized(3.5f, 24.0f)
+                    .sized(3.5f, 6.0f)
                     .clientTrackingRange(16)
                     .fireImmune()
                     .build(HARVESTER_KEY));
@@ -62,7 +68,7 @@ public final class TripodDawnEntities {
             BuiltInRegistries.ENTITY_TYPE,
             UBERPOD_KEY,
             EntityType.Builder.of(UberpodEntity::new, MobCategory.MONSTER)
-                    .sized(5.0f, 30.0f)
+                    .sized(5.0f, 7.0f)
                     .clientTrackingRange(16)
                     .fireImmune()
                     .build(UBERPOD_KEY));
@@ -71,7 +77,7 @@ public final class TripodDawnEntities {
             BuiltInRegistries.ENTITY_TYPE,
             EMPERORPOD_KEY,
             EntityType.Builder.of(EmperorpodEntity::new, MobCategory.MONSTER)
-                    .sized(5.0f, 30.0f)
+                    .sized(5.0f, 7.0f)
                     .clientTrackingRange(16)
                     .fireImmune()
                     .build(EMPERORPOD_KEY));
@@ -81,7 +87,7 @@ public final class TripodDawnEntities {
             BuiltInRegistries.ENTITY_TYPE,
             TITAN_KEY,
             EntityType.Builder.of(TitanEntity::new, MobCategory.MONSTER)
-                    .sized(3.5f, 24.0f)
+                    .sized(3.5f, 6.0f)
                     .clientTrackingRange(16)
                     .fireImmune()
                     .build(TITAN_KEY));

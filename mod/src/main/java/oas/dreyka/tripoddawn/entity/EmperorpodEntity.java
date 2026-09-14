@@ -29,6 +29,7 @@ public class EmperorpodEntity extends MachineEntity {
                 .add(Attributes.ARMOR, 25.0)
                 .add(Attributes.ATTACK_DAMAGE, 60.0)
                 .add(Attributes.FOLLOW_RANGE, HUNT_RANGE)
+                .add(Attributes.STEP_HEIGHT, STEP_UP)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 40.0)
                 .add(Attributes.ATTACK_KNOCKBACK, 1.0);
     }

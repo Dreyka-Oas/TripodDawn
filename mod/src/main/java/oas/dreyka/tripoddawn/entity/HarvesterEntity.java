@@ -23,6 +23,7 @@ public class HarvesterEntity extends MachineEntity {
                 .add(Attributes.ARMOR, 15.0)
                 .add(Attributes.ATTACK_DAMAGE, 30.0)
                 .add(Attributes.FOLLOW_RANGE, HUNT_RANGE)
+                .add(Attributes.STEP_HEIGHT, STEP_UP)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 10.0)
                 .add(Attributes.ATTACK_KNOCKBACK, 0.5);
     }

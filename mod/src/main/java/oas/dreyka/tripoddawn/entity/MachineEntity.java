@@ -11,15 +11,15 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
-import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
-import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Monster;
@@ -36,6 +36,10 @@ import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.animation.object.PlayState;
 import software.bernie.geckolib.animation.state.AnimationTest;
 import software.bernie.geckolib.util.GeckoLibUtil;
+
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 
 /**
  * What the four war machines have in common.
@@ -59,8 +63,14 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     /** When the soil stops being thrown, early enough that the last of it dies with the rise. */
     private static final int DUST_TICKS = EMERGE_TICKS - 80;
 
-    /** How long a wreck stays on the ground before it goes up. */
-    private static final int WRECK_TICKS = 6000;
+    /**
+     * How long a wreck stays on the ground before it goes up.
+     *
+     * <p>Five seconds of that is the machine still falling, so what is left is three on its side,
+     * venting, and then the blast. It used to be five minutes, and a field of them turned into a
+     * scrapyard nobody could walk through: the kill and the crater are one moment now.
+     */
+    private static final int WRECK_TICKS = 160;
 
     /** The blast a wreck leaves. Wide enough to be a crater, short of levelling a house. */
     private static final float SCUTTLE_POWER = 3.5f;
@@ -74,6 +84,15 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * they came for and spend the night strolling.
      */
     public static final double HUNT_RANGE = 128.0;
+
+    /**
+     * How high a leg steps without the machine leaving the ground.
+     *
+     * <p>It walks at what it wants instead of routing around it, so the ground has to be climbed
+     * rather than jumped: a forty block walker hopping over a garden wall is the one thing that would
+     * make it look light.
+     */
+    protected static final double STEP_UP = 3.0;
 
     /** How far it shoots, which is nearer than how far it hunts: it closes in before it fires. */
     private static final double WEAPON_RANGE = 80.0;
@@ -103,8 +122,20 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private static final int STEP_SHAKE_TICKS = 14;
     private static final int STAMP_SHAKE_TICKS = 30;
 
+    /**
+     * How far a hittable slab may reach from its own position.
+     *
+     * <p>The game finds an entity by the chunk section its position falls in, widened by four blocks,
+     * and never by the box it carries. One slab over a walker's thirty-two blocks of legs answers
+     * shots over the fifteen nearest its feet and lets the rest through; a slab fourteen wide answers
+     * from one side and not the other. Both numbers stay inside that reach with half a block to
+     * spare, whatever section boundary the machine happens to be standing across.
+     */
+    private static final float SLAB_HEIGHT = 3.5f;
+    static final float SLAB_WIDTH = 7.0f;
+
     /** How often a wreck lets go of a lungful while it burns. */
-    private static final int VENT_PERIOD = 130;
+    private static final int VENT_PERIOD = 45;
 
     private static final EntityDataAccessor<Byte> DATA_PHASE =
             SynchedEntityData.defineId(MachineEntity.class, EntityDataSerializers.BYTE);
@@ -166,16 +197,28 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * How tall this machine is drawn, in blocks, before its scale is applied.
      *
      * <p>It is not the registered box, and the two are a long way apart: a walker is drawn at forty
-     * blocks and boxed at twenty-four. Growing the box to match would have the server walk the blocks
+     * blocks and collides at six. Growing the box to match would have the server walk the blocks
      * inside forty blocks of empty sky every tick, for every machine standing, and would wedge one
-     * under any canopy tall enough to clear its hood. The box keeps colliding and pathing at the size
-     * that is cheap; the slabs a shot lands on and the height the ray leaves from are cut from this.
+     * under any canopy tall enough to clear its hood. The box keeps colliding at the size that is
+     * cheap; the slabs a shot lands on and the height the ray leaves from are cut from this.
      */
     public abstract float modelHeight();
 
     /** The same, at the size this machine actually stands. */
     public float drawnHeight() {
         return modelHeight() * getScale();
+    }
+
+    /**
+     * It looks out of its hood, not out of the box it collides with.
+     *
+     * <p>The box is the legs, so the inherited eye sits four blocks off the ground on something forty
+     * blocks tall. Everything that asks whether the machine can see a target would then be asking
+     * whether its shins can, and a fence would be cover from a walker that steps over houses.
+     */
+    @Override
+    public double getEyeY() {
+        return getY() + drawnHeight() * 0.92;
     }
 
     protected abstract int experience();
@@ -204,7 +247,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         return phase() == PHASE_EMERGING;
     }
 
-    /** Down for good. The five minutes it then spends on the ground are scenery, not an agony. */
+    /** Down for good. The seconds it then spends on the ground are scenery, not an agony. */
     public boolean fallen() {
         return this.isDeadOrDying() && this.deathTime >= FALL_TICKS;
     }
@@ -253,8 +296,8 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
 
     @Override
     protected void registerGoals() {
-        this.goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.0, false));
-        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8));
+        this.goalSelector.addGoal(1, new StrideGoal(this));
+        this.goalSelector.addGoal(5, new RoamGoal(this));
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 24.0f));
         this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
 
@@ -281,6 +324,118 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         private HuntPlayerGoal(MachineEntity machine) {
             super(machine, Player.class, 10, false, false, null);
             this.targetConditions.ignoreLineOfSight();
+        }
+    }
+
+    /**
+     * Walking at a target without asking for a route to it.
+     *
+     * <p>The vanilla melee goal asks the navigator for a path, and a path costs the number of blocks
+     * the walker fills at every node it considers. A machine fills a few hundred, and it hunts over a
+     * hundred and twenty-eight blocks, so a single one deciding how to reach a player was measured at
+     * half a second of server time: eight of them held the tick at ninety-five milliseconds against a
+     * budget of fifty, and the reading swung between eight and a thousand depending on who happened to
+     * be recomputing. Handing the move control a position costs nothing and is what this thing does
+     * anyway. It is taller than the trees and it walks through the wall rather than around the house.
+     */
+    private static final class StrideGoal extends Goal {
+        /** Between two stamps, so a machine standing over someone does not hit them every tick. */
+        private static final int STRIKE_PERIOD = 20;
+
+        private final MachineEntity machine;
+        private int strikeCooldown;
+
+        private StrideGoal(MachineEntity machine) {
+            this.machine = machine;
+            setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            LivingEntity target = this.machine.getTarget();
+            return target != null && target.isAlive() && !this.machine.emerging();
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return canUse();
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void stop() {
+            this.machine.getMoveControl().setWantedPosition(this.machine.getX(),
+                    this.machine.getY(), this.machine.getZ(), 0.0);
+        }
+
+        @Override
+        public void tick() {
+            LivingEntity target = this.machine.getTarget();
+            if (target == null) {
+                return;
+            }
+            this.machine.getLookControl().setLookAt(target, 30.0f, 30.0f);
+
+            if (this.strikeCooldown > 0) {
+                this.strikeCooldown--;
+            }
+            if (this.machine.isWithinMeleeAttackRange(target)) {
+                if (this.strikeCooldown <= 0 && this.machine.level() instanceof ServerLevel server) {
+                    this.strikeCooldown = STRIKE_PERIOD;
+                    this.machine.doHurtTarget(server, target);
+                }
+                return;
+            }
+            this.machine.getMoveControl().setWantedPosition(target.getX(), target.getY(),
+                    target.getZ(), 1.0);
+        }
+    }
+
+    /**
+     * What it does with nobody to walk at: it keeps walking, in a direction it picks now and then.
+     *
+     * <p>Same reason as the goal above. The stroll goal vanilla ships asks for a short path every few
+     * seconds, which is cheap for a chicken and was worth ten milliseconds a tick for six machines
+     * standing in an empty field.
+     */
+    private static final class RoamGoal extends Goal {
+        private static final int HOLD_TICKS = 120;
+        private static final double REACH = 16.0;
+
+        private final MachineEntity machine;
+        private int held;
+
+        private RoamGoal(MachineEntity machine) {
+            this.machine = machine;
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            return this.machine.getTarget() == null && !this.machine.emerging();
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return canUse();
+        }
+
+        @Override
+        public void tick() {
+            if (--this.held > 0) {
+                return;
+            }
+            this.held = HOLD_TICKS + this.machine.getRandom().nextInt(HOLD_TICKS);
+            double angle = this.machine.getRandom().nextDouble() * Math.PI * 2.0;
+            this.machine.getMoveControl().setWantedPosition(
+                    this.machine.getX() + Math.cos(angle) * REACH,
+                    this.machine.getY(),
+                    this.machine.getZ() + Math.sin(angle) * REACH,
+                    0.8);
         }
     }
 
@@ -409,17 +564,32 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         // that clears entities takes them with it. A machine that kept the dead references would
         // stand there unhittable, which reads as invulnerability rather than as a missing box.
         if (this.parts == null || this.parts[0].isRemoved()) {
-            MachinePart.Zone[] zones = MachinePart.Zone.values();
-            this.parts = new MachinePart[zones.length];
-            for (int i = 0; i < zones.length; i++) {
-                this.parts[i] = new MachinePart(this, zones[i]);
-                server.addFreshEntity(this.parts[i]);
-            }
+            buildParts(server);
             return;
         }
         for (MachinePart part : this.parts) {
             part.follow();
         }
+    }
+
+    /**
+     * Cuts the three zones into slabs and puts them in the world.
+     *
+     * <p>The count comes from the machine's drawn height rather than being written down, because the
+     * same three zones have to cover a scout and a titan twice its size.
+     */
+    private void buildParts(ServerLevel server) {
+        float tall = drawnHeight();
+        List<MachinePart> built = new ArrayList<>();
+        for (MachinePart.Zone zone : MachinePart.Zone.values()) {
+            int slabs = Math.max(1, Mth.ceil(tall * zone.span() / SLAB_HEIGHT));
+            for (int i = 0; i < slabs; i++) {
+                MachinePart part = new MachinePart(this, zone, i, slabs);
+                server.addFreshEntity(part);
+                built.add(part);
+            }
+        }
+        this.parts = built.toArray(new MachinePart[0]);
     }
 
     private void dropParts() {
@@ -581,11 +751,11 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * What a wreck does with its five minutes.
+     * What a wreck does with the few seconds it has.
      *
      * <p>The gas sound had been registered and never played, and a machine lying in a field in total
-     * silence reads as a prop. It lets go of a lungful every few seconds instead, which also warns
-     * whoever walks up to it that the thing has not finished.
+     * silence reads as a prop. It lets go of a lungful instead, three times over, which is also the
+     * warning that the thing has not finished.
      */
     private void vent(ServerLevel server) {
         if (this.deathTime % VENT_PERIOD != 0) {
@@ -601,9 +771,10 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     /**
      * What a wreck does instead of blinking out.
      *
-     * <p>Five minutes of a machine lying in a field is scenery, and scenery that vanishes between two
-     * glances reads as the game forgetting it. Bound to the vanilla mob griefing rule like every other
-     * blast this mod sets off, so a server that turned block damage off has already said so.
+     * <p>A machine left lying is scenery, and scenery that vanishes between two glances reads as the
+     * game forgetting it. It goes up instead, a few seconds after it lands, while whoever killed it is
+     * still standing there. Bound to the vanilla mob griefing rule like every other blast this mod
+     * sets off, so a server that turned block damage off has already said so.
      */
     private void scuttle(ServerLevel server) {
         // Counts kept low on purpose: the mod's own flame quads are three blocks across, so a

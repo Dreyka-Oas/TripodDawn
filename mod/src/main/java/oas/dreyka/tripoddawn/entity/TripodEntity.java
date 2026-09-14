@@ -40,6 +40,7 @@ public class TripodEntity extends MachineEntity {
                 .add(Attributes.ARMOR, TripodVariant.LINE.armour())
                 .add(Attributes.ATTACK_DAMAGE, TripodVariant.LINE.stamp())
                 .add(Attributes.FOLLOW_RANGE, HUNT_RANGE)
+                .add(Attributes.STEP_HEIGHT, STEP_UP)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 10.0)
                 .add(Attributes.ATTACK_KNOCKBACK, 0.5)
                 .add(Attributes.SCALE, TripodVariant.LINE.scale());
