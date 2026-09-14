@@ -268,9 +268,24 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      */
     private static final double SHORE_PROBE = 8.0;
 
-    /** How far off its heading a machine will swing to stay dry, and in how many tries. */
+    /** How far off its heading a machine will swing to stay clear, and in how many tries. */
     private static final int SHORE_ARCS = 5;
     private static final double SHORE_ARC = 30.0;
+
+    /**
+     * How far the ground may rise ahead before it counts as something to walk round, in blocks.
+     *
+     * <p>Wide enough that a bank, a hedge or a rise in a field is just ground a walker steps over, and
+     * low enough that a house is not. The shortest line to a target used to go through every wall on
+     * it, and a street the invasion had crossed read as demolished rather than as walked down.
+     */
+    private static final double WALL_RISE = 4.0;
+
+    /** How far a horn carries to the rest of the invasion, in blocks. */
+    private static final double HORN_RANGE = 192.0;
+
+    /** How long a machine keeps walking at a horn it heard, in ticks. */
+    private static final int RALLY_TICKS = 600;
 
     /** Well inside the ticket's own timeout, so the ground never lapses under a walking machine. */
     private static final int TICKET_PERIOD = 20;
@@ -302,6 +317,8 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private Float emergeFacing;
     private Vec3 crushAnchor;
     private int shoreSide;
+    private Vec3 rally;
+    private int rallyTicks;
     private Vec3 partAnchor;
     private float partFacing;
     private float partTall;
@@ -594,11 +611,18 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
                 return;
             }
             // A target across a river is one the machine walks the bank towards rather than wades
-            // after. It still shoots from where it stops, which is what the range is for.
+            // after, and one behind a row of houses is one it walks round. It still shoots from where
+            // it stops, which is what the range is for.
             Vec3 step = this.machine.ashore(target.getX(), target.getZ());
-            if (step != null) {
-                this.machine.getMoveControl().setWantedPosition(step.x, target.getY(), step.z, 1.0);
+            if (step == null) {
+                // Hemmed in on every heading. This is where the thing goes through rather than round:
+                // the crush sweep opens whatever the straight line runs into, which is the only way a
+                // machine walled into a courtyard ever gets out of it.
+                this.machine.getMoveControl().setWantedPosition(target.getX(), target.getY(),
+                        target.getZ(), 1.0);
+                return;
             }
+            this.machine.getMoveControl().setWantedPosition(step.x, target.getY(), step.z, 1.0);
         }
     }
 
@@ -645,7 +669,15 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
 
         @Override
         public void tick() {
-            if (--this.held <= 0) {
+            Vec3 called = this.machine.rallyPoint();
+            if (called != null) {
+                // A horn is the one thing that overrides where this one had decided to go. Aimed at
+                // the spot every tick rather than held for a while, since the machine that blew it is
+                // walking at something and the others are meant to arrive where it ends up.
+                this.heading = Math.atan2(called.z - this.machine.getZ(),
+                        called.x - this.machine.getX());
+                this.held = 1;
+            } else if (--this.held <= 0) {
                 this.held = HOLD_TICKS + this.machine.getRandom().nextInt(HOLD_TICKS);
                 this.heading = this.machine.getRandom().nextDouble() * Math.PI * 2.0;
             }
@@ -657,8 +689,11 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
                     this.machine.getX() + Math.cos(this.heading) * REACH,
                     this.machine.getZ() + Math.sin(this.heading) * REACH);
             if (step == null) {
-                // Cornered by water on every side. Turning rather than stopping, so it works its way
-                // back out instead of standing at the shore until something walks past.
+                // Cornered on every side. The move control holds the last spot it was given, so the
+                // walk has to be called off as well as the heading dropped: a machine that only
+                // turned went on leaning into the wall it had just decided to avoid.
+                this.machine.getMoveControl().setWantedPosition(this.machine.getX(),
+                        this.machine.getY(), this.machine.getZ(), 0.0);
                 this.held = 0;
                 return;
             }
@@ -705,6 +740,9 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         }
         tickParts(server);
         tickTicket(server);
+        if (this.rallyTicks > 0 && --this.rallyTicks == 0) {
+            this.rally = null;
+        }
 
         if (emerging()) {
             tickEmerge(server);
@@ -714,6 +752,47 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         tickStride(server);
         tickCrush(server);
         tickWeapon(server);
+    }
+
+    /**
+     * The horn, and the rest of the invasion turning towards it.
+     *
+     * <p>A machine finding someone is the loudest event the mod has, and until now the only time the
+     * horn sounded was the climb out of the ground: a player was hunted by something that walked at
+     * them in silence. It blows once on the catch rather than for as long as the chase lasts, and it
+     * blows for a target found, not for one lost or for the same one re-acquired a tick later.
+     *
+     * <p>What the others do with it is walk at the spot, not inherit the target. Whoever they find on
+     * the way is theirs, which is what turns one machine spotting a village into the whole night
+     * arriving there, without any of them shooting at something they cannot see.
+     */
+    @Override
+    public void setTarget(LivingEntity target) {
+        LivingEntity had = getTarget();
+        super.setTarget(target);
+        if (target == null || had != null || emerging() || !(level() instanceof ServerLevel server)) {
+            return;
+        }
+        playSound(hornSound(), 16.0f, 1.0f);
+        Vec3 spot = target.position();
+        for (MachineEntity other : server.getEntitiesOfClass(MachineEntity.class,
+                getBoundingBox().inflate(HORN_RANGE), machine -> machine != this && machine.isAlive())) {
+            other.hearHorn(spot);
+        }
+    }
+
+    /** Where this one was called to, or null when nothing has blown a horn near it lately. */
+    private Vec3 rallyPoint() {
+        return this.rallyTicks > 0 ? this.rally : null;
+    }
+
+    /** Sends it towards a horn, unless it already has someone of its own to walk at. */
+    private void hearHorn(Vec3 spot) {
+        if (getTarget() != null || emerging()) {
+            return;
+        }
+        this.rally = spot;
+        this.rallyTicks = RALLY_TICKS;
     }
 
     /**
@@ -902,23 +981,35 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * The same heading, with water taken out of it.
+     * The same heading, with whatever it should be walking round taken out of it.
      *
-     * <p>A walker collides in a box six blocks tall and stands forty, so a river the game reads as
-     * something it wades into and drowns in is, to anyone watching, a stream passing under a hull
-     * twenty blocks up. It keeps to dry land instead: the ground a stride ahead is felt for a fluid,
-     * and the heading swings away from one until it finds soil.
+     * <p>Two things are worth a detour. A river the game reads as something it wades into and drowns
+     * in is, to anyone watching, a stream passing under a hull twenty blocks up. And a house is
+     * something to walk past rather than through: a machine that took the shortest line everywhere
+     * left a trench of broken buildings behind it wherever it went, which is a bulldozer and not a
+     * patrol. Both are felt a stride ahead, and the heading swings away until it finds open ground.
      *
-     * @return where to walk, or null when every swing ends in water and the thing should hold still
+     * @return where to walk, or null when every swing is barred and the caller has to decide
      */
+    /**
+     * How far ahead the ground is felt, which is a machine's own size and not a fixed number.
+     *
+     * <p>It has to be further out than the legs sweep, or the detour is worthless: a tripod keeping
+     * eight blocks off a wall still had twelve blocks of stride passing through it, so it went round
+     * the house and knocked it down on the way past all the same.
+     */
+    private double probe() {
+        return Math.max(SHORE_PROBE, drawnHeight() * LEG_SWEEP + CRUSH_MARGIN + 5.0);
+    }
+
     private Vec3 ashore(double x, double z) {
-        if (!wet(x, z)) {
+        if (!barred(x, z)) {
             this.shoreSide = 0;
             return new Vec3(x, getY(), z);
         }
         double dx = x - getX();
         double dz = z - getZ();
-        double reach = Math.max(SHORE_PROBE, Math.sqrt(dx * dx + dz * dz));
+        double reach = Math.max(probe(), Math.sqrt(dx * dx + dz * dz));
         double heading = Math.atan2(dz, dx);
         // The side that worked last time is tried first, which is what turns a machine feeling its
         // way around a lake into one following the bank. Picking afresh each tick had it swing left,
@@ -931,7 +1022,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
                 double angle = heading + side * swing;
                 double tx = getX() + Math.cos(angle) * reach;
                 double tz = getZ() + Math.sin(angle) * reach;
-                if (!wet(tx, tz)) {
+                if (!barred(tx, tz)) {
                     this.shoreSide = side;
                     return new Vec3(tx, getY(), tz);
                 }
@@ -941,30 +1032,48 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * Whether the ground between here and there holds water anywhere along the way.
+     * Whether the ground between here and there is water, or stands high enough to be a building.
      *
-     * <p>Sampled a few blocks apart rather than block by block: what this has to catch is a lake,
-     * and a puddle a machine steps over is not worth a walk of the whole line.
+     * <p>Sampled a few blocks apart rather than block by block: what this has to catch is a lake and a
+     * house, and a puddle or a fence post a machine steps over is not worth a walk of the whole line.
+     * Both answers come off the same heightmap column, so the detour costs what the water test alone
+     * used to.
+     *
+     * <p>Felt as a corridor rather than as a line, because a machine is not a line. A single ray down
+     * the middle had one clearing a house by a hair and taking the roof off with the leg on that side,
+     * which from the street is the same demolished house as walking through it.
      */
-    private boolean wet(double x, double z) {
+    private boolean barred(double x, double z) {
         double dx = x - getX();
         double dz = z - getZ();
         double reach = Math.sqrt(dx * dx + dz * dz);
-        int samples = Math.max(1, Mth.ceil(Math.min(reach, SHORE_PROBE) / 2.0));
+        if (reach < 1.0e-4) {
+            return false;
+        }
+        double probe = probe();
+        double ceiling = getY() + WALL_RISE;
+        double wide = drawnHeight() * LEG_SWEEP + CRUSH_MARGIN;
+        double sx = -dz / reach * wide;
+        double sz = dx / reach * wide;
+        int samples = Math.max(1, Mth.ceil(Math.min(reach, probe) / 2.0));
         for (int i = 1; i <= samples; i++) {
-            double along = (SHORE_PROBE * i) / samples;
-            if (along > reach) {
-                along = reach;
-            }
+            double along = Math.min((probe * i) / samples, reach);
             double px = getX() + dx / reach * along;
             double pz = getZ() + dz / reach * along;
-            BlockPos surface = level().getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                    BlockPos.containing(px, getY(), pz));
-            if (!level().getFluidState(surface.below()).isEmpty()) {
-                return true;
+            for (int side = -1; side <= 1; side++) {
+                if (blocked(px + sx * side, pz + sz * side, ceiling)) {
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    /** Whether the column standing there is water, or rises past what a leg steps over. */
+    private boolean blocked(double x, double z, double ceiling) {
+        BlockPos surface = level().getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                BlockPos.containing(x, getY(), z));
+        return !level().getFluidState(surface.below()).isEmpty() || surface.getY() > ceiling;
     }
 
     /**

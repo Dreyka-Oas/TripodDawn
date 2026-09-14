@@ -125,6 +125,19 @@ public class MartianEntity extends Monster implements GeoEntity {
         }
     }
 
+    /**
+     * Drawn as far out as the server bothers to send it.
+     *
+     * <p>The vanilla reach comes from the size of the box, which puts a martian out of sight at a
+     * hundred and thirty blocks: the tracker carries it four times that, so the ones crossing a field
+     * towards the player were being sent and then dropped on arrival.
+     */
+    @Override
+    public boolean shouldRenderAtSqrDistance(double distance) {
+        double reach = 512.0 * getViewScale();
+        return distance < reach * reach;
+    }
+
     /** Nothing lands on one still under the ground: the clip has it buried for the first second. */
     @Override
     public boolean hurtServer(ServerLevel server, DamageSource source, float amount) {
