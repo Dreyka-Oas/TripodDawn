@@ -25,6 +25,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,8 +73,11 @@ public final class TripodDawnCommands {
             new Lineup(TripodDawnEntities.TITAN, null));
 
     /** Far enough back that the tallest of them fits on the screen, spaced so none overlaps. */
-    private static final double LINEUP_AWAY = 90.0;
-    private static final double LINEUP_GAP = 34.0;
+    private static final double LINEUP_AWAY = 150.0;
+    /** How far a machine's legs reach out of its axis, as a share of how tall it is drawn. */
+    private static final double LINEUP_SPLAY = 0.20;
+    /** Clear air between two of them, on top of what each one takes for itself. */
+    private static final double LINEUP_GAP = 10.0;
 
     private record Lineup(EntityType<? extends Mob> type, TripodVariant build) {
     }
@@ -164,14 +168,14 @@ public final class TripodDawnCommands {
         Vec3 ahead = Vec3.directionFromRotation(0.0f, yaw);
         Vec3 across = Vec3.directionFromRotation(0.0f, yaw + 90.0f);
         float facing = yaw + 180.0f;
-        int standing = 0;
-        for (int i = 0; i < LINEUP.size(); i++) {
-            Vec3 spot = from.add(ahead.scale(LINEUP_AWAY))
-                    .add(across.scale((i - (LINEUP.size() - 1) * 0.5) * LINEUP_GAP));
-            BlockPos ground = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                    BlockPos.containing(spot));
-            Lineup piece = LINEUP.get(i);
-            Mob mob = piece.type().spawn(level, ground, EntitySpawnReason.COMMAND);
+        // Spaced on how wide each one stands rather than evenly, since the titan is two and a half
+        // walkers across and an even row has it wearing its neighbour.
+        List<Mob> row = new ArrayList<>();
+        double[] offsets = new double[LINEUP.size()];
+        double offset = 0.0;
+        double previous = 0.0;
+        for (Lineup piece : LINEUP) {
+            Mob mob = piece.type().spawn(level, BlockPos.containing(from), EntitySpawnReason.COMMAND);
             if (mob == null) {
                 continue;
             }
@@ -181,6 +185,20 @@ public final class TripodDawnCommands {
             if (mob instanceof MachineEntity machine) {
                 machine.skipEmerge();
             }
+            double half = mob instanceof MachineEntity machine
+                    ? machine.drawnHeight() * LINEUP_SPLAY : mob.getBbWidth();
+            offset += row.isEmpty() ? 0.0 : previous + half + LINEUP_GAP;
+            previous = half;
+            offsets[row.size()] = offset;
+            row.add(mob);
+        }
+        double middle = offset * 0.5;
+        for (int i = 0; i < row.size(); i++) {
+            Mob mob = row.get(i);
+            Vec3 spot = from.add(ahead.scale(LINEUP_AWAY))
+                    .add(across.scale(offsets[i] - middle));
+            BlockPos ground = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    BlockPos.containing(spot));
             // Turned by hand as well as placed, since the columns of hit boxes stand where the body
             // is pointed and a machine dropped in keeps whatever way the spawn left it looking.
             mob.snapTo(ground.getX() + 0.5, ground.getY(), ground.getZ() + 0.5, facing, 0.0f);
@@ -188,11 +206,10 @@ public final class TripodDawnCommands {
             mob.setYHeadRot(facing);
             mob.setNoAi(true);
             mob.setPersistenceRequired();
-            standing++;
         }
-        int count = standing;
+        int count = row.size();
         source.sendSuccess(() -> Component.translatable("commands.tripoddawn.lineup", count), true);
-        return standing;
+        return count;
     }
 
     private static int summon(CommandContext<CommandSourceStack> context, EntityType<? extends Mob> type,
