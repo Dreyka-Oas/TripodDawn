@@ -106,13 +106,17 @@ public final class TripodDawnEntities {
     /**
      * The slabs a machine is hit on. Tracked like anything else, because a player aims on their own
      * client and a box nobody was told about cannot be shot at.
+     *
+     * <p>Tracked close, though. Forty machines' worth of slabs is what a row of them costs a client,
+     * and the only thing a client does with one is put the crosshair on it, which happens within
+     * arm's reach. An arrow is judged by the server, which knows about every slab at any distance.
      */
     public static final EntityType<MachinePart> MACHINE_PART = Registry.register(
             BuiltInRegistries.ENTITY_TYPE,
             MACHINE_PART_KEY,
             EntityType.Builder.<MachinePart>of(MachinePart::new, MobCategory.MISC)
                     .sized(1.0f, 1.0f)
-                    .clientTrackingRange(6)
+                    .clientTrackingRange(4)
                     .noSummon()
                     .noSave()
                     .fireImmune()
