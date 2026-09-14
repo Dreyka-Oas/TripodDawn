@@ -167,6 +167,37 @@ it goes off long after the fight and usually next to wherever you went afterward
 vanilla mob griefing rule like everything else this mod sets off, so a server that turned block damage
 off has already said no to the crater.
 
+### What you hear, and what you feel
+
+A machine is loud before it is visible. Every time one has covered a fifth of its own height it puts
+a leg down, and the footfall is measured off the ground it actually covered rather than read off the
+walk animation, so a scout at three quarters speed takes more steps per second and leaves the same
+distance between two of them. Close enough and you get the foot itself, with dirt thrown up around
+it. Past sixty-four blocks the same step arrives as the far version, which has lost its top end and
+gained a tail: what reaches you over that distance is the low end and a roll, never the metal.
+
+The engine works the same way, near and far, and the horn is unchanged from the source mod. What is
+new is everything under the machine, since the mod it came from had nothing at all down there: three
+footfalls that rotate, the distant one, the stamp, the bed under a shake, and the ring a shot makes
+on plating. None of them is a sample. `mod/scripts/steps.py` draws them out of sine sweeps and shaped
+noise, which is the only way the repository can own them, and a forty block leg landing on stone is
+not a thing anybody has a recording of anyway.
+
+Both of those come with the ground moving. An arrival shakes everyone within forty blocks for twelve
+seconds; a footfall shakes whoever stands inside three quarters of the machine's drawn height, for
+long enough to read as a jolt and no longer; a stamp that connects shakes the full height. The
+camera moves and your aim stays yours. The three durations are the only knob: the effect tapers on
+its own, so a short shake is a weak one.
+
+The ring a shot makes says where it landed. A strut answers low, the hull in the middle, the plate
+over the hood high and thin, and it is played from the height of the box that was hit rather than
+from the machine, so on a forty block walker the shins and the hood come from two different places.
+Nothing else tells you that you found the weak point: no number comes up, and the machine's own hurt
+sound is the same wherever it was hit.
+
+A wreck keeps breathing while it burns. Every six and a half seconds it lets go of a lungful of gas
+and smoke, right up to the blast.
+
 ## The command
 
 `/tripoddawn` needs operator level and is the only place in the mod that writes in the chat, to
@@ -200,9 +231,10 @@ The jar lands in `mod/build/libs/`. Versions are pinned in `mod/gradle.propertie
 language files key for key, every id a player sees against its translation, every sound and every
 model against the file it points at. It returns non-zero on the first problem.
 
-Two more scripts rebuild the assets rather than leaving them as files nobody can reproduce.
-`mod/scripts/particles.py` draws the eleven dust and heat-ray frames, and `mod/scripts/sounds.sh`
-takes a folder of source recordings and writes the seventeen `.ogg` files.
+Three more scripts rebuild the assets rather than leaving them as files nobody can reproduce.
+`mod/scripts/particles.py` draws the eleven dust and heat-ray frames. `mod/scripts/sounds.sh` takes a
+folder of source recordings and writes seventeen of the `.ogg` files. `mod/scripts/steps.py` needs no
+input at all and writes the other seven, the ones under the machine, from numbers.
 
 ## Licence
 
