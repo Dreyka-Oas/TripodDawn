@@ -12,18 +12,18 @@ import net.minecraft.world.level.Level;
 /**
  * The big one.
  *
- * <p>Forty blocks, which is two thirds again the height of anything else the invasion owns, and the
- * first thing about it a player learns is that it is on the horizon and the trees are not. It is the
- * only machine whose silhouette is the whole warning, so nothing announces it: no bar at the top of
- * the screen, no line in the chat, the same silence as the rest.
+ * <p>A hundred blocks, two and a half times anything else the invasion owns, and the first thing
+ * about it a player learns is that it is on the horizon and the trees are not. It is the only
+ * machine whose silhouette is the whole warning, so nothing announces it: no bar at the top of the
+ * screen, no line in the chat, the same silence as the rest.
  *
- * <p>Scaled through the vanilla attribute rather than drawn at forty blocks, so the hit slabs, the
- * muzzle height and the stamp reach all follow the size on their own.
+ * <p>Scaled through the vanilla attribute rather than drawn at that size, so the hit slabs, the
+ * muzzle height and the stamp reach all follow it on their own.
  */
 public class TitanEntity extends MachineEntity {
 
-    /** Forty blocks out of the twenty-four block walker the model was cut for. */
-    public static final float SCALE = 1.7f;
+    /** A hundred blocks out of the walker the model was cut for. */
+    public static final float SCALE = 2.6f;
 
     public TitanEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
