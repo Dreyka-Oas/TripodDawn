@@ -42,15 +42,16 @@ public class MachinePart extends Entity {
     /**
      * Where a shot can land, and what it is worth there.
      *
-     * <p>The spans overlap on purpose. A shot that arrives at the seam belongs to whichever box the
-     * game hands it, and both answers are defensible; a gap there would be a shot that hits nothing.
+     * <p>The spans meet without overlapping. A shot that arrives at a seam belongs to whichever box
+     * the game hands it and both answers are defensible, but a span covered twice is a second box
+     * standing inside the first one, paid for on every tick of every machine in sight.
      */
     public enum Zone {
         /** Thin, far apart, and mostly air. Little of what is aimed at them is load bearing. */
         LEGS(0.00f, 0.76f, 0.6f, 0.75f),
 
         /** The hull. What a machine is, as far as damage is concerned. */
-        HULL(0.76f, 0.92f, 1.0f, 1.05f),
+        HULL(0.76f, 0.90f, 1.0f, 1.05f),
 
         /**
          * The hood, where the ray comes out and where the armour cannot be.
@@ -59,7 +60,7 @@ public class MachinePart extends Entity {
          * measurement here is taken against, and the model's own crown stands a tenth above it:
          * measured in game against a column of blocks, a walker drawn at forty reaches forty-four.
          */
-        HOOD(0.88f, 1.12f, 2.5f, 1.55f);
+        HOOD(0.90f, 1.12f, 2.5f, 1.55f);
 
         private final float bottom;
         private final float top;
@@ -161,7 +162,9 @@ public class MachinePart extends Entity {
         // blocks past the section holding the slab's own position, so a box reaching further than
         // that answers a shot coming from one direction and lets the same shot through from the
         // other: the walker was hittable from the east and transparent from the west at the waist.
-        float width = Math.min(tall * this.width, MachineEntity.SLAB_SIZE);
+        // The two caps differ because a column too tall is cut into more slabs and a box too wide
+        // cannot be, so holding width to the height's limit left a titan's hull outside its own box.
+        float width = Math.min(tall * this.width, MachineEntity.SPAN_SIZE);
         float height = Math.min(tall * (this.top - this.bottom), MachineEntity.SLAB_SIZE);
         // The synched-data callback that turns these two numbers into a box only fires on a client,
         // where the packet arrives, so the server has to rebuild the box itself.

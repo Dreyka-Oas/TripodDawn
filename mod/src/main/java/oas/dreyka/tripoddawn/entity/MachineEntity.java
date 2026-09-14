@@ -28,6 +28,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animatable.manager.AnimatableManager;
@@ -134,24 +135,34 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     static final float SLAB_SIZE = 7.0f;
 
     /**
+     * The widest a slab is allowed to be sideways, in blocks.
+     *
+     * <p>Height is what the section lookup punishes, since a column is cut into as many slabs as it
+     * needs and each one sits at its own position. Width is not: one hood is one slab whatever the
+     * machine, so capping it at the height limit would leave a titan's hull sticking out of its own
+     * box. Sixteen is the reach a search has from a slab's own section plus the section itself,
+     * which is as wide as a box can get and still answer from both of its edges.
+     */
+    static final float SPAN_SIZE = 16.0f;
+
+    /**
      * The columns of slabs a machine wears, each one a fraction of its drawn height.
      *
-     * <p>Measured off the model. A leg is at its widest around a fifth of the height out from the
-     * axis, and the three of them stay that far apart until they meet under the hull; below that
-     * meeting point the middle of the machine is daylight, so no column stands there and a shot
-     * between the legs goes through.
+     * <p>Measured off the model in game, with the silhouette read row by row off a screenshot rather
+     * than guessed: a leg stands a fifth of the height out from the axis at the foot and around half
+     * that under the hip, and it is barely a fortieth of the height thick along its whole length. The
+     * middle of the machine below the hull is daylight, so nothing stands there and a shot between
+     * the legs goes through.
      */
     private static final int LEG_COUNT = 3;
     private static final float LEG_REACH = 0.185f;
     private static final float LEG_TOP = 0.76f;
-    private static final float LEG_WIDTH = 0.175f;
+    private static final float LEG_WIDTH = 0.07f;
 
-    /** Above this the legs are drawing in towards the hull, and the columns come in with them. */
-    private static final float LEG_GATHER = 0.58f;
-    private static final float TRUNK_BOTTOM = 0.45f;
-    private static final float TRUNK_WIDTH = 0.13f;
-    private static final float HULL_WIDTH = 0.175f;
-    private static final float HOOD_WIDTH = 0.15f;
+    /** How much of its foot reach a leg column still has once it arrives under the hull. */
+    private static final float LEG_HIP = 0.55f;
+    private static final float HULL_WIDTH = 0.20f;
+    private static final float HOOD_WIDTH = 0.16f;
 
     /**
      * Where the first leg column stands, in degrees off the way the machine faces.
@@ -185,6 +196,9 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private int engineTicks;
     private HeatRayProjectile.Mode mode = HeatRayProjectile.Mode.CHARGED;
     private MachinePart[] parts;
+    private Vec3 partAnchor;
+    private float partFacing;
+    private float partTall;
     private double strideLeft;
 
     protected MachineEntity(EntityType<? extends Monster> type, Level level) {
@@ -594,6 +608,17 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             buildParts(server);
             return;
         }
+        // A machine standing still still animates, but the columns do not follow the animation, so
+        // there is nothing for them to do until the body itself moves or turns. Moving a slab writes
+        // it into a new chunk section, and forty of those per machine per tick is a bill a row of
+        // them pays for nothing.
+        if (position().equals(this.partAnchor) && this.yBodyRot == this.partFacing
+                && drawnHeight() == this.partTall) {
+            return;
+        }
+        this.partAnchor = position();
+        this.partFacing = this.yBodyRot;
+        this.partTall = drawnHeight();
         for (MachinePart part : this.parts) {
             part.follow();
         }
@@ -611,8 +636,6 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             column(server, built, MachinePart.Zone.LEGS, 0.0f, LEG_TOP,
                     LEG_REACH, LEG_OFFSET + 360.0f * leg / LEG_COUNT, LEG_WIDTH);
         }
-        column(server, built, MachinePart.Zone.LEGS, TRUNK_BOTTOM, MachinePart.Zone.HULL.bottom(),
-                0.0f, 0.0f, TRUNK_WIDTH);
         column(server, built, MachinePart.Zone.HULL, MachinePart.Zone.HULL.bottom(),
                 MachinePart.Zone.HULL.top(), 0.0f, 0.0f, HULL_WIDTH);
         column(server, built, MachinePart.Zone.HOOD, MachinePart.Zone.HOOD.bottom(),
@@ -629,18 +652,20 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             float low = bottom + span * i / slabs;
             float high = bottom + span * (i + 1) / slabs;
             MachinePart part = new MachinePart(this, zone, low, high,
-                    reach * gather((low + high) * 0.5f), angle, width);
+                    reach * lean((low + high) * 0.5f), angle, width);
             server.addFreshEntity(part);
             built.add(part);
         }
     }
 
-    /** How much of its full reach a leg column keeps at this height. */
-    private static float gather(float height) {
-        if (height <= LEG_GATHER) {
-            return 1.0f;
-        }
-        return Mth.clamp((LEG_TOP - height) / (LEG_TOP - LEG_GATHER), 0.3f, 1.0f);
+    /**
+     * How much of its foot reach a leg column keeps at this height.
+     *
+     * <p>A leg slopes inwards the whole way up rather than standing straight and bending at the last
+     * moment, so the columns follow one line from the foot to the hip.
+     */
+    private static float lean(float height) {
+        return Mth.lerp(Mth.clamp(height / LEG_TOP, 0.0f, 1.0f), 1.0f, LEG_HIP);
     }
 
     private void dropParts() {
