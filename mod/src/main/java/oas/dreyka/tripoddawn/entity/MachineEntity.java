@@ -183,6 +183,16 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private static final int LEG_COUNT = 3;
     private static final float LEG_REACH = 0.185f;
     private static final float LEG_TOP = 0.76f;
+
+    /**
+     * How far out a foot goes at the far end of a stride, as a fraction of the drawn height.
+     *
+     * <p>The columns describe a machine standing. Walking, the clip throws a leg well past where it
+     * rests, which is why a wall cleared to the width of the stance still had metal inside it: the
+     * hole was the right size for the pose the boxes knew about and not for the one on screen. Read
+     * off the walk clip by walking the bone chain out to the foot, not guessed.
+     */
+    private static final float LEG_SWEEP = 0.30f;
     private static final float LEG_WIDTH = 0.07f;
 
     /** How much of its foot reach a leg column still has once it arrives under the hull. */
@@ -489,18 +499,20 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * A machine picks a player out without having to see them first.
+     * A machine picks out a player it can actually see.
      *
-     * <p>The ordinary goal needs a clear line from the attacker's eyes, which sit twenty blocks off
-     * the ground on something this tall: a single rise between it and a player on foot is enough to
-     * make it stand still all night, which is backwards for a thing that towers over the trees. It
-     * still has to see its target to shoot, and that test is in {@link #tickWeapon}.
+     * <p>Sight is its own test rather than the vanilla one, for the same reason the beam uses it: a
+     * window is not cover from something that melts the window, and only a block that occludes stops
+     * the look. What it does mean is that a roof does stop it. A player standing indoors is not
+     * found, and one already found stays hunted after they run inside, which is the difference
+     * between hiding before a machine has noticed you and hiding after.
      */
     private static final class HuntPlayerGoal extends NearestAttackableTargetGoal<Player> {
         private final MachineEntity machine;
 
         private HuntPlayerGoal(MachineEntity machine) {
-            super(machine, Player.class, 10, false, false, null);
+            super(machine, Player.class, 10, false, false,
+                    (living, level) -> machine.clearShot(living));
             this.machine = machine;
             this.targetConditions.ignoreLineOfSight();
         }
@@ -598,10 +610,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * standing in an empty field.
      */
     private static final class RoamGoal extends Goal {
-        private static final int HOLD_TICKS = 120;
-        private static final double REACH = 16.0;
+        /** How long one heading is held before another is picked, in ticks. */
+        private static final int HOLD_TICKS = 200;
+        private static final double REACH = 24.0;
 
         private final MachineEntity machine;
+        private double heading;
         private int held;
 
         private RoamGoal(MachineEntity machine) {
@@ -620,18 +634,36 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         }
 
         @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void start() {
+            this.held = 0;
+        }
+
+        @Override
         public void tick() {
-            if (--this.held > 0) {
+            if (--this.held <= 0) {
+                this.held = HOLD_TICKS + this.machine.getRandom().nextInt(HOLD_TICKS);
+                this.heading = this.machine.getRandom().nextDouble() * Math.PI * 2.0;
+            }
+            // Asked for again every tick, and for a point that keeps moving ahead of the machine.
+            // Handing the move control one spot and waiting for it to be reached is what had a
+            // walker cross twenty blocks and then stand in a field for a quarter of a minute: from
+            // the ground it read as a machine that had broken down rather than one on patrol.
+            Vec3 step = this.machine.ashore(
+                    this.machine.getX() + Math.cos(this.heading) * REACH,
+                    this.machine.getZ() + Math.sin(this.heading) * REACH);
+            if (step == null) {
+                // Cornered by water on every side. Turning rather than stopping, so it works its way
+                // back out instead of standing at the shore until something walks past.
+                this.held = 0;
                 return;
             }
-            this.held = HOLD_TICKS + this.machine.getRandom().nextInt(HOLD_TICKS);
-            double angle = this.machine.getRandom().nextDouble() * Math.PI * 2.0;
-            Vec3 step = this.machine.ashore(
-                    this.machine.getX() + Math.cos(angle) * REACH,
-                    this.machine.getZ() + Math.sin(angle) * REACH);
-            if (step != null) {
-                this.machine.getMoveControl().setWantedPosition(step.x, this.machine.getY(), step.z, 0.8);
-            }
+            this.heading = Math.atan2(step.z - this.machine.getZ(), step.x - this.machine.getX());
+            this.machine.getMoveControl().setWantedPosition(step.x, this.machine.getY(), step.z, 0.8);
         }
     }
 
@@ -834,10 +866,13 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         double lead = Math.sqrt(ahead.x * ahead.x + ahead.z * ahead.z);
         double cx = getX() + ahead.x * 0.5;
         double cz = getZ() + ahead.z * 0.5;
+        // A planted foot sits at the column's reach; one in mid stride is out much further, and the
+        // stride is the state a machine crossing a town is in the whole time.
+        double spread = lead > 1.0e-4 ? LEG_SWEEP : LEG_REACH;
         int top = ground + Mth.ceil(tall * LEG_TOP);
         int left = budget;
         for (int y = ground; y <= top && left > 0; y++) {
-            double reach = tall * LEG_REACH * lean((float) ((y - ground) / tall))
+            double reach = tall * spread * lean((float) ((y - ground) / tall))
                     + CRUSH_MARGIN + lead * 0.5;
             double square = reach * reach;
             for (int x = Mth.floor(cx - reach); x <= Mth.floor(cx + reach) && left > 0; x++) {
