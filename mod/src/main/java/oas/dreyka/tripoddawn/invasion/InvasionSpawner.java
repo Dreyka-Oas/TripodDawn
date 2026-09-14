@@ -11,6 +11,7 @@ import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
@@ -23,6 +24,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,11 +40,35 @@ public final class InvasionSpawner {
     private InvasionSpawner() {
     }
 
-    /** Far enough that a walker is a silhouette when it comes up, near enough to be found. */
-    private static final int MACHINE_MIN = 48;
-    private static final int MACHINE_MAX = 96;
+    /**
+     * Far enough that a walker is a silhouette when it comes up, near enough to be found.
+     *
+     * <p>The far end is past what the server sends a player by default, which is the point: a machine
+     * is meant to be read off the horizon before it is met, and the tracker sends it out to a kilometre
+     * whatever the view distance says. The ground under the spot is pulled in when it has to be.
+     */
+    private static final int MACHINE_MIN = 64;
+    private static final int MACHINE_MAX = 256;
     private static final int MARTIAN_MIN = 20;
     private static final int MARTIAN_MAX = 44;
+
+    /**
+     * How much room one machine keeps around itself, in blocks.
+     *
+     * <p>Two coming up in the same field arrive as one event with a doubled silhouette, and they then
+     * spend the night walking the same line. Spread over the spawn ring instead, so a night's worth
+     * arrives from several directions.
+     */
+    private static final int MACHINE_SPACING = 96;
+
+    /**
+     * How many chunks one night may pull in to find room for a machine.
+     *
+     * <p>The spawn ring now reaches past what a player has loaded, so most of it answers "not there"
+     * rather than "no". Generating the ground is what makes the far end of the ring real, and the
+     * budget is what stops a night from generating a hundred chunks looking for a flat spot.
+     */
+    private static final int LOAD_BUDGET = 8;
 
     /** Tries before a placement is given up on, per creature. */
     private static final int PLACEMENT_TRIES = 16;
@@ -57,8 +83,8 @@ public final class InvasionSpawner {
     private static final int MACHINE_FOOTPRINT = 2;
 
     /** The big one comes up further out, because the whole point of it is the silhouette. */
-    private static final int TITAN_MIN = 72;
-    private static final int TITAN_MAX = 112;
+    private static final int TITAN_MIN = 160;
+    private static final int TITAN_MAX = 384;
 
     /** Six blocks of hull across, so the ground is read a block wider on each side than a walker's. */
     private static final int TITAN_FOOTPRINT = 3;
@@ -270,6 +296,7 @@ public final class InvasionSpawner {
                                            int min, int max, int footprint) {
         RandomSource random = level.getRandom();
         int tries = footprint > 0 ? MACHINE_TRIES : PLACEMENT_TRIES;
+        int loads = footprint > 0 ? LOAD_BUDGET : 0;
         for (int attempt = 0; attempt < tries; attempt++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double reach = min + random.nextDouble() * (max - min);
@@ -279,6 +306,13 @@ public final class InvasionSpawner {
             // Asked before the heightmap, which would otherwise generate the chunk to answer.
             BlockPos probe = new BlockPos(x, level.getMinY(), z);
             if (!level.isLoaded(probe)) {
+                if (loads <= 0) {
+                    continue;
+                }
+                loads--;
+                level.getChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z));
+            }
+            if (footprint > 0 && crowded(level, x, z)) {
                 continue;
             }
             BlockPos surface = column(level, probe);
@@ -298,6 +332,19 @@ public final class InvasionSpawner {
             return mob;
         }
         return null;
+    }
+
+    /**
+     * Whether a machine already stands close enough to this spot to make a second one redundant.
+     *
+     * <p>Measured flat: what the rule is protecting is the horizon a player reads, and two machines
+     * on the same bearing read as one whatever the ground does between them.
+     */
+    private static boolean crowded(ServerLevel level, int x, int z) {
+        AABB around = new AABB(x - MACHINE_SPACING, level.getMinY(), z - MACHINE_SPACING,
+                x + MACHINE_SPACING, level.getMaxY(), z + MACHINE_SPACING);
+        return !level.getEntities(EntityTypeTest.forClass(MachineEntity.class), around,
+                Entity::isAlive).isEmpty();
     }
 
     private static boolean suitable(ServerLevel level, BlockPos surface, int footprint) {

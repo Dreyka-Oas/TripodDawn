@@ -35,7 +35,7 @@ public class TitanEntity extends MachineEntity {
     private static final double WEAPON = 140.0;
 
     /** Far enough ahead of the weapon that it has picked its target well before it can fire on it. */
-    private static final double HUNT = 190.0;
+    private static final double HUNT = 400.0;
 
     /** Past this the volley comes out, and inside it the ordinary beam the rest of them carry. */
     private static final double SIEGE_FROM = 60.0;
