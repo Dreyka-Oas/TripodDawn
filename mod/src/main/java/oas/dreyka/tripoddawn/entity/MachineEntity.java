@@ -18,6 +18,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -34,6 +35,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -90,11 +92,11 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private static final int FALL_TICKS = 100;
 
     /**
-     * How far a machine looks for someone to walk at. It has to cover the ninety-six blocks the
-     * invasion drops one at with room to spare, or the half that land past it never notice the player
-     * they came for and spend the night strolling.
+     * How far a machine looks for someone to walk at. It has to cover the distance the invasion drops
+     * one at with room to spare, or the half that land past it never notice the player they came for
+     * and spend the night strolling.
      */
-    public static final double HUNT_RANGE = 128.0;
+    public static final double HUNT_RANGE = 288.0;
 
     /**
      * How high a leg steps without the machine leaving the ground.
@@ -221,6 +223,18 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     /** How far it has to have travelled since the last pass for there to be anything new inside it. */
     private static final double CRUSH_STEP = 0.3;
 
+    /**
+     * How far ahead the ground is felt for water, in blocks.
+     *
+     * <p>Short on purpose. This is a machine following a bank, not one planning a route around a
+     * lake: it looks one stride out, turns away from what it finds, and walks on.
+     */
+    private static final double SHORE_PROBE = 8.0;
+
+    /** How far off its heading a machine will swing to stay dry, and in how many tries. */
+    private static final int SHORE_ARCS = 5;
+    private static final double SHORE_ARC = 30.0;
+
     /** Well inside the ticket's own timeout, so the ground never lapses under a walking machine. */
     private static final int TICKET_PERIOD = 20;
 
@@ -250,6 +264,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private MachinePart[] parts;
     private Float emergeFacing;
     private Vec3 crushAnchor;
+    private int shoreSide;
     private Vec3 partAnchor;
     private float partFacing;
     private float partTall;
@@ -539,8 +554,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
                 }
                 return;
             }
-            this.machine.getMoveControl().setWantedPosition(target.getX(), target.getY(),
-                    target.getZ(), 1.0);
+            // A target across a river is one the machine walks the bank towards rather than wades
+            // after. It still shoots from where it stops, which is what the range is for.
+            Vec3 step = this.machine.ashore(target.getX(), target.getZ());
+            if (step != null) {
+                this.machine.getMoveControl().setWantedPosition(step.x, target.getY(), step.z, 1.0);
+            }
         }
     }
 
@@ -580,11 +599,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             }
             this.held = HOLD_TICKS + this.machine.getRandom().nextInt(HOLD_TICKS);
             double angle = this.machine.getRandom().nextDouble() * Math.PI * 2.0;
-            this.machine.getMoveControl().setWantedPosition(
+            Vec3 step = this.machine.ashore(
                     this.machine.getX() + Math.cos(angle) * REACH,
-                    this.machine.getY(),
-                    this.machine.getZ() + Math.sin(angle) * REACH,
-                    0.8);
+                    this.machine.getZ() + Math.sin(angle) * REACH);
+            if (step != null) {
+                this.machine.getMoveControl().setWantedPosition(step.x, this.machine.getY(), step.z, 0.8);
+            }
         }
     }
 
@@ -727,8 +747,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return;
         }
         // The scan is the whole cost here, and nothing new stands inside a machine that has not moved.
-        if (this.crushAnchor != null
-                && this.crushAnchor.distanceToSqr(position()) < CRUSH_STEP * CRUSH_STEP) {
+        // One that wants to move and is not moving is the exception that matters: pinned against a
+        // wall it would never scan again, so it would never take that wall down, and the thing that
+        // walks through houses would be held up by one.
+        boolean settled = this.crushAnchor != null
+                && this.crushAnchor.distanceToSqr(position()) < CRUSH_STEP * CRUSH_STEP;
+        if (settled && !getMoveControl().hasWanted()) {
             return;
         }
         this.crushAnchor = position();
@@ -763,6 +787,72 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         // Nothing drops: a city block's worth of items on the ground is a bigger problem for the
         // server than the machine that made them, and a wreck is what this is supposed to leave.
         return server.destroyBlock(pos, false, this);
+    }
+
+    /**
+     * The same heading, with water taken out of it.
+     *
+     * <p>A walker collides in a box six blocks tall and stands forty, so a river the game reads as
+     * something it wades into and drowns in is, to anyone watching, a stream passing under a hull
+     * twenty blocks up. It keeps to dry land instead: the ground a stride ahead is felt for a fluid,
+     * and the heading swings away from one until it finds soil.
+     *
+     * @return where to walk, or null when every swing ends in water and the thing should hold still
+     */
+    private Vec3 ashore(double x, double z) {
+        if (!wet(x, z)) {
+            this.shoreSide = 0;
+            return new Vec3(x, getY(), z);
+        }
+        double dx = x - getX();
+        double dz = z - getZ();
+        double reach = Math.max(SHORE_PROBE, Math.sqrt(dx * dx + dz * dz));
+        double heading = Math.atan2(dz, dx);
+        // The side that worked last time is tried first, which is what turns a machine feeling its
+        // way around a lake into one following the bank. Picking afresh each tick had it swing left,
+        // then right, then left, and spend the night treading the same ten blocks.
+        int first = this.shoreSide != 0 ? this.shoreSide : -1;
+        for (int arc = 1; arc <= SHORE_ARCS; arc++) {
+            double swing = Math.toRadians(SHORE_ARC * arc);
+            for (int i = 0; i < 2; i++) {
+                int side = i == 0 ? first : -first;
+                double angle = heading + side * swing;
+                double tx = getX() + Math.cos(angle) * reach;
+                double tz = getZ() + Math.sin(angle) * reach;
+                if (!wet(tx, tz)) {
+                    this.shoreSide = side;
+                    return new Vec3(tx, getY(), tz);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether the ground between here and there holds water anywhere along the way.
+     *
+     * <p>Sampled a few blocks apart rather than block by block: what this has to catch is a lake,
+     * and a puddle a machine steps over is not worth a walk of the whole line.
+     */
+    private boolean wet(double x, double z) {
+        double dx = x - getX();
+        double dz = z - getZ();
+        double reach = Math.sqrt(dx * dx + dz * dz);
+        int samples = Math.max(1, Mth.ceil(Math.min(reach, SHORE_PROBE) / 2.0));
+        for (int i = 1; i <= samples; i++) {
+            double along = (SHORE_PROBE * i) / samples;
+            if (along > reach) {
+                along = reach;
+            }
+            double px = getX() + dx / reach * along;
+            double pz = getZ() + dz / reach * along;
+            BlockPos surface = level().getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    BlockPos.containing(px, getY(), pz));
+            if (!level().getFluidState(surface.below()).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1137,6 +1227,12 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         // take a house takes the leg standing beside it, and two machines that trade one shot are
         // then each other's target for the rest of the night instead of anyone's problem.
         if (invader(source.getEntity()) || invader(source.getDirectEntity())) {
+            return false;
+        }
+        // It keeps out of water on its own, and when something pushes it in anyway the head it would
+        // breathe through is twenty blocks above the surface. Drowning is measured on the collision
+        // box, which is the shins.
+        if (source.is(DamageTypes.DROWN)) {
             return false;
         }
         return super.hurtServer(server, source, amount);
