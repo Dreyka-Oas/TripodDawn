@@ -96,6 +96,9 @@ public class HeatRayProjectile extends Projectile {
     /** Beyond this a machine has the time to wind all the way up, and takes it. */
     public static final double CHARGE_FROM = 36.0;
 
+    /** The drawn height every blast is measured against: the walker, at its own scale. */
+    private static final float REFERENCE_HEIGHT = 40.0f;
+
     /** Left arm then right, for everything that has to happen at both hooks. */
     private static final boolean[] BOTH_ARMS = {true, false};
 
@@ -127,6 +130,7 @@ public class HeatRayProjectile extends Projectile {
 
     private int pierced;
     private Mode mode = Mode.CHARGED;
+    private float power = 1.0f;
 
     public HeatRayProjectile(EntityType<? extends HeatRayProjectile> type, Level level) {
         super(type, level);
@@ -176,6 +180,7 @@ public class HeatRayProjectile extends Projectile {
      */
     public static void fire(ServerLevel level, MachineEntity machine, LivingEntity target, Mode mode) {
         Vec3 at = target.getPosition(1.0f).add(0.0, target.getBbHeight() * 0.5, 0.0);
+        float power = power(machine);
 
         // Fanned around the upright rather than around the line of fire, so a volley lands as a row
         // along the ground and not as a ring around the target. The middle beam keeps the aim.
@@ -185,6 +190,7 @@ public class HeatRayProjectile extends Projectile {
             Vec3 spread = at.subtract(hook).yRot(turn);
             HeatRayProjectile ray = new HeatRayProjectile(TripodDawnEntities.HEAT_RAY, level);
             ray.mode = mode;
+            ray.power = power;
             ray.setPos(hook.x, hook.y, hook.z);
             ray.setOwner(machine);
             ray.shoot(spread.x, spread.y, spread.z, mode.speed, 0.0f);
@@ -198,6 +204,17 @@ public class HeatRayProjectile extends Projectile {
                     case CHARGED -> 0.9f;
                     case SIEGE -> 0.55f;
                 });
+    }
+
+    /**
+     * How hard the machine that fired hits the ground, against the walker the mod is built around.
+     *
+     * <p>A scout is a third of a titan, so its shot should not leave the same crater. The number is
+     * the machine's own drawn height, which already carries its build and its scale attribute, so a
+     * machine added later is covered without a value of its own.
+     */
+    private static float power(MachineEntity machine) {
+        return machine.drawnHeight() / REFERENCE_HEIGHT;
     }
 
     /** The bloom at the barrel, thrown forward rather than sat on the hook. */
@@ -306,10 +323,11 @@ public class HeatRayProjectile extends Projectile {
      * own: a server that has turned block damage off has said so once, for every mob.
      */
     private void splash(ServerLevel server) {
-        impact(server);
+        double reach = this.mode.radius * this.power;
+        impact(server, reach);
 
         for (LivingEntity nearby : server.getEntitiesOfClass(LivingEntity.class,
-                new AABB(this.position(), this.position()).inflate(this.mode.radius))) {
+                new AABB(this.position(), this.position()).inflate(reach))) {
             // Machines never catch their own fire, otherwise two of them in one street kill each
             // other before they reach anything a player built.
             if (nearby == this.getOwner() || MachineEntity.invader(nearby)) {
@@ -319,26 +337,42 @@ public class HeatRayProjectile extends Projectile {
         }
 
         server.explode(this.getOwner(), null, SPARE_INVADERS, this.getX(), this.getY(), this.getZ(),
-                this.mode.blast, true, Level.ExplosionInteraction.MOB);
+                this.mode.blast * this.power, true, Level.ExplosionInteraction.MOB);
         server.gameEvent(GameEvent.EXPLODE, this.position(), GameEvent.Context.of(this));
     }
 
     /**
      * The ground hit, in three layers so that it reads at sixty blocks as well as at ten: the white
      * flash, the orange ball thrown back along the beam, and the smoke the vanilla explosion leaves.
+     *
+     * <p>The cloud is spread over the crater the shot is about to open rather than over a fixed
+     * ball, since a titan's hit that looked like a scout's read as the big machine missing. Counts
+     * rise with the square root of that reach: a cloud twice as wide needs more than twice the
+     * grains to stay opaque, and rather fewer than the four times filling it evenly would cost.
      */
-    private void impact(ServerLevel server) {
+    private void impact(ServerLevel server, double reach) {
         double x = this.getX();
         double y = this.getY();
         double z = this.getZ();
         Vec3 back = this.getDeltaMovement().normalize().scale(-1.0);
+        double spread = reach * 0.55;
+        float thick = Mth.sqrt((float) (reach / this.mode.radius));
 
-        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY_BRIGHT, x, y, z, 24, 0.5, 0.5, 0.5, 0.3);
-        TripodDawnParticles.send(server, TripodDawnParticles.BLAST, x, y, z, 10, 1.4, 1.4, 1.4, 0.06);
+        TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY_BRIGHT, x, y, z,
+                grains(24, thick), spread * 0.4, spread * 0.4, spread * 0.4, 0.3);
+        TripodDawnParticles.send(server, TripodDawnParticles.BLAST, x, y, z,
+                grains(10, thick), spread, spread, spread, 0.06);
         TripodDawnParticles.send(server, TripodDawnParticles.HEAT_RAY,
-                x + back.x, y + back.y, z + back.z, 20, 1.6, 1.6, 1.6, 0.18);
-        TripodDawnParticles.send(server, ParticleTypes.LAVA, x, y, z, 8, 0.6, 0.6, 0.6, 0.0);
-        TripodDawnParticles.send(server, ParticleTypes.LARGE_SMOKE, x, y + 0.5, z, 12, 1.0, 0.8, 1.0, 0.04);
+                x + back.x, y + back.y, z + back.z,
+                grains(20, thick), spread * 1.1, spread * 1.1, spread * 1.1, 0.18);
+        TripodDawnParticles.send(server, ParticleTypes.LAVA, x, y, z,
+                grains(8, thick), spread * 0.45, spread * 0.45, spread * 0.45, 0.0);
+        TripodDawnParticles.send(server, ParticleTypes.LARGE_SMOKE, x, y + 0.5, z,
+                grains(12, thick), spread * 0.7, spread * 0.6, spread * 0.7, 0.04);
+    }
+
+    private static int grains(int base, float thick) {
+        return Math.round(base * thick);
     }
 
     @Override
@@ -346,6 +380,7 @@ public class HeatRayProjectile extends Projectile {
         super.addAdditionalSaveData(output);
         output.putInt("Pierced", this.pierced);
         output.putString("Mode", this.mode.name());
+        output.putFloat("Power", this.power);
     }
 
     @Override
@@ -353,6 +388,7 @@ public class HeatRayProjectile extends Projectile {
         super.readAdditionalSaveData(input);
         this.pierced = input.getIntOr("Pierced", 0);
         this.mode = Mode.valueOf(input.getStringOr("Mode", Mode.CHARGED.name()));
+        this.power = input.getFloatOr("Power", 1.0f);
     }
 
     @Override
