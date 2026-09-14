@@ -10,6 +10,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.level.gameevent.GameEvent;
@@ -37,12 +38,25 @@ public class HeatRayProjectile extends Projectile {
      * player was at arm's length or at the far end of a field, and the same certain death at the end
      * of it. Distance decides now. Up close it snaps, which is fast enough to be frightening and weak
      * enough to be survived in armour; from far off it winds all the way up, which is death, and the
-     * two seconds of hood glowing are the whole warning. Closing the distance is the answer to the
+     * two seconds of arms glowing are the whole warning. Closing the distance is the answer to the
      * one that kills, and that is the fight this mod did not have before.
      */
     public enum Mode {
-        QUICK(8, 25.0f, 8.0f, 2.5, 1.5f, 25),
-        CHARGED(40, 500.0f, 40.0f, 4.0, 3.0f, 100);
+        // Two beams, one off each arm, aimed from the hook they leave rather than from a shared
+        // point, so they close on the target from either side. Half the damage each: what a player
+        // takes off one salvo is what it was when a machine fired once.
+        QUICK(8, 13.0f, 4.0f, 2.5, 1.5f, 25, 2, 0.0f, 3.0f),
+        CHARGED(40, 250.0f, 20.0f, 4.0, 3.0f, 100, 2, 0.0f, 3.0f),
+
+        /**
+         * The titan's, and nothing else fires it.
+         *
+         * <p>Five beams instead of two, fanned wide enough that at a hundred blocks they arrive as a
+         * line of fire thirty blocks across rather than as a shot to dodge. Three and a half seconds
+         * of arms gathering pays for it, which is long enough to get out of the way of and long
+         * enough to watch, and eight and a half between two of them.
+         */
+        SIEGE(70, 900.0f, 70.0f, 7.0, 4.0f, 170, 5, 4.5f, 5.0f);
 
         private final int aim;
         private final float direct;
@@ -50,14 +64,21 @@ public class HeatRayProjectile extends Projectile {
         private final double radius;
         private final float blast;
         private final int cooldown;
+        private final int shots;
+        private final float fan;
+        private final float speed;
 
-        Mode(int aim, float direct, float splash, double radius, float blast, int cooldown) {
+        Mode(int aim, float direct, float splash, double radius, float blast, int cooldown,
+             int shots, float fan, float speed) {
             this.aim = aim;
             this.direct = direct;
             this.splash = splash;
             this.radius = radius;
             this.blast = blast;
             this.cooldown = cooldown;
+            this.shots = shots;
+            this.fan = fan;
+            this.speed = speed;
         }
 
         /** Ticks of wind-up, which is the warning a player gets. */
@@ -73,6 +94,9 @@ public class HeatRayProjectile extends Projectile {
     /** Beyond this a machine has the time to wind all the way up, and takes it. */
     public static final double CHARGE_FROM = 36.0;
 
+    /** Left arm then right, for everything that has to happen at both hooks. */
+    private static final boolean[] BOTH_ARMS = {true, false};
+
     private static final int MAX_PIERCE = 10;
 
     /**
@@ -80,7 +104,7 @@ public class HeatRayProjectile extends Projectile {
      * machine shoots at, and short enough that the ray always dies inside the area the server is
      * still ticking: one that flies out of it stops ageing and stays in the world for good.
      */
-    private static final int MAX_AGE = 30;
+    private static final int MAX_AGE = 34;
 
     /**
      * How the beam is drawn.
@@ -96,7 +120,7 @@ public class HeatRayProjectile extends Projectile {
     private static final int CORE_COUNT = 4;
     private static final double CORE_SPREAD = 0.08;
 
-    /** Where the hood glows while the machine is winding up, so the shot is seen before it lands. */
+    /** How often the arms flare through the wind-up, so the shot is seen before it lands. */
     private static final int CHARGE_PERIOD = 4;
 
     private int pierced;
@@ -110,13 +134,8 @@ public class HeatRayProjectile extends Projectile {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
     }
 
-    /** The height the beam leaves from, which is the hood and not the feet forty blocks below. */
-    public static double muzzleY(MachineEntity machine) {
-        return machine.getY() + machine.drawnHeight() * 0.92;
-    }
-
     /**
-     * The hood lighting up through the wind-up.
+     * The arms lighting up through the wind-up.
      *
      * <p>A beam that arrives with no warning is a death a player cannot read afterwards. The glow
      * tightens as the shot gets closer: wide and dim at the start, a hard point by the end.
@@ -125,41 +144,65 @@ public class HeatRayProjectile extends Projectile {
         if (aimTicks % CHARGE_PERIOD != 0) {
             return;
         }
-        // A snap shot gathers nothing worth seeing, so it gets a flicker at the hood and the wide
+        // A snap shot gathers nothing worth seeing, so it gets a flicker at the hooks and the wide
         // closing glow is kept for the one that kills: the two shots have to be told apart in the
         // second a player has to decide whether to run or to close.
         double closing = 1.0 - Math.min(1.0, (double) aimTicks / mode.aim);
-        double spread = mode == Mode.QUICK ? 0.3 : 0.2 + closing * 1.6;
-        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY,
-                machine.getX(), muzzleY(machine), machine.getZ(), 3, spread, spread, spread, 0.0);
-        TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT,
-                machine.getX(), muzzleY(machine), machine.getZ(), 2, 0.25, 0.25, 0.25, 0.0);
+        double spread = switch (mode) {
+            case QUICK -> 0.3;
+            case CHARGED -> 0.2 + closing * 1.6;
+            // Gathered over arms four times the span, and it has to be legible from the far side
+            // of the field it is about to burn, so it starts wider and it draws in further.
+            case SIEGE -> 0.4 + closing * 5.0;
+        };
+        int count = mode == Mode.SIEGE ? 10 : 3;
+        for (boolean left : BOTH_ARMS) {
+            Vec3 hook = machine.muzzle(left);
+            TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY,
+                    hook.x, hook.y, hook.z, count, spread, spread, spread, 0.0);
+            TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT,
+                    hook.x, hook.y, hook.z, count - 1, 0.25, 0.25, 0.25, 0.0);
+        }
     }
 
-    /** Aims from the machine's hood rather than from its feet, twenty-four blocks lower. */
+    /**
+     * Leaves the hooks on the ends of the arms, one shot per arm and back again.
+     *
+     * <p>The arms are what a machine points at a target, so a beam out of the middle of the hull read
+     * as coming from nowhere. Each shot is aimed from the hook it leaves, not from a shared centre,
+     * which is what makes two of them converge on a target instead of running parallel.
+     */
     public static void fire(ServerLevel level, MachineEntity machine, LivingEntity target, Mode mode) {
-        HeatRayProjectile ray = new HeatRayProjectile(TripodDawnEntities.HEAT_RAY, level);
-        double y = muzzleY(machine);
-        ray.mode = mode;
-        ray.setPos(machine.getX(), y, machine.getZ());
-        ray.setOwner(machine);
+        Vec3 at = target.getPosition(1.0f).add(0.0, target.getBbHeight() * 0.5, 0.0);
 
-        Vec3 aim = new Vec3(
-                target.getX() - machine.getX(),
-                target.getY() + target.getBbHeight() * 0.5 - y,
-                target.getZ() - machine.getZ());
-        ray.shoot(aim.x, aim.y, aim.z, 3.0f, 0.0f);
+        // Fanned around the upright rather than around the line of fire, so a volley lands as a row
+        // along the ground and not as a ring around the target. The middle beam keeps the aim.
+        for (int i = 0; i < mode.shots; i++) {
+            Vec3 hook = machine.muzzle(i % 2 == 0);
+            float turn = (i - (mode.shots - 1) * 0.5f) * mode.fan * Mth.DEG_TO_RAD;
+            Vec3 spread = at.subtract(hook).yRot(turn);
+            HeatRayProjectile ray = new HeatRayProjectile(TripodDawnEntities.HEAT_RAY, level);
+            ray.mode = mode;
+            ray.setPos(hook.x, hook.y, hook.z);
+            ray.setOwner(machine);
+            ray.shoot(spread.x, spread.y, spread.z, mode.speed, 0.0f);
+            level.addFreshEntity(ray);
+            muzzleFlash(level, hook, ray.getDeltaMovement().normalize());
+        }
 
-        level.addFreshEntity(ray);
-        muzzleFlash(level, machine, ray.getDeltaMovement().normalize());
-        machine.playSound(TripodDawnSounds.HEAT_RAY, 10.0f, mode == Mode.QUICK ? 1.35f : 0.9f);
+        machine.playSound(TripodDawnSounds.HEAT_RAY, mode == Mode.SIEGE ? 16.0f : 10.0f,
+                switch (mode) {
+                    case QUICK -> 1.35f;
+                    case CHARGED -> 0.9f;
+                    case SIEGE -> 0.55f;
+                });
     }
 
-    /** The bloom at the barrel, thrown forward rather than sat on the hood. */
-    private static void muzzleFlash(ServerLevel level, MachineEntity machine, Vec3 forward) {
-        double x = machine.getX() + forward.x * 2.0;
-        double y = muzzleY(machine) + forward.y * 2.0;
-        double z = machine.getZ() + forward.z * 2.0;
+    /** The bloom at the barrel, thrown forward rather than sat on the hook. */
+    private static void muzzleFlash(ServerLevel level, Vec3 hook, Vec3 forward) {
+        double x = hook.x + forward.x * 2.0;
+        double y = hook.y + forward.y * 2.0;
+        double z = hook.z + forward.z * 2.0;
         TripodDawnParticles.send(level, TripodDawnParticles.BLAST, x, y, z, 3, 0.5, 0.5, 0.5, 0.0);
         TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY_BRIGHT, x, y, z, 8, 0.7, 0.7, 0.7, 0.04);
         TripodDawnParticles.send(level, TripodDawnParticles.HEAT_RAY, x, y, z, 10, 1.1, 1.1, 1.1, 0.06);

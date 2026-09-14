@@ -7,8 +7,12 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ChunkLevel;
+import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.Ticket;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -24,10 +28,12 @@ import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -99,6 +105,22 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private static final double WEAPON_RANGE = 80.0;
 
     /**
+     * How far this one shoots, in blocks.
+     *
+     * <p>A method rather than the constant so the biggest machine can outrange the rest, which is
+     * what its speed is traded against: it walks slower than anything else on the field and it is
+     * meant to be answered by closing the distance, not by waiting it out.
+     */
+    public double weaponRange() {
+        return WEAPON_RANGE;
+    }
+
+    /** How far this one looks for someone, which can never be shorter than how far it shoots. */
+    public double huntRange() {
+        return HUNT_RANGE;
+    }
+
+    /**
      * Nearer than this the machine stamps instead of firing. The ray leaves a hood twenty blocks up
      * and a target underfoot puts its blast at the machine's own legs, which is how one kills itself
      * in half a minute. It also gives a player somewhere to stand.
@@ -165,12 +187,25 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private static final float HOOD_WIDTH = 0.16f;
 
     /**
+     * The hook on the end of an arm, as fractions of the drawn height.
+     *
+     * <p>Out to the side, forward of the hood, and a little under it: the arms reach past the snout,
+     * which is why a beam that left the middle of the machine read as coming out of nothing.
+     */
+    private static final double ARM_SIDE = 0.083;
+    private static final double ARM_AHEAD = 0.17;
+    private static final double ARM_HIGH = 0.86;
+
+    /**
      * Where the first leg column stands, in degrees off the way the machine faces.
      *
      * <p>Read off the model with the boxes drawn in game: the walker carries one leg behind it and
      * two spread in front, not one in front and two behind.
      */
     private static final float LEG_OFFSET = 180.0f;
+
+    /** Well inside the ticket's own timeout, so the ground never lapses under a walking machine. */
+    private static final int TICKET_PERIOD = 20;
 
     /** How often a wreck lets go of a lungful while it burns. */
     private static final int VENT_PERIOD = 45;
@@ -196,6 +231,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private int engineTicks;
     private HeatRayProjectile.Mode mode = HeatRayProjectile.Mode.CHARGED;
     private MachinePart[] parts;
+    private Float emergeFacing;
     private Vec3 partAnchor;
     private float partFacing;
     private float partTall;
@@ -262,6 +298,29 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         return getY() + drawnHeight() * 0.92;
     }
 
+    /**
+     * The hook at the end of one arm, which is where a beam leaves from.
+     *
+     * <p>The three numbers are the hook bone read off the model and turned into fractions of the
+     * drawn height, so one arm's worth of offset stays on the arm whatever size the machine is
+     * standing at. Taken off the body's facing rather than the head's, because the arms hang from the
+     * hood and turn with the whole machine.
+     *
+     * @param left the machine's own left, which is the arm on a player's right when it faces them
+     */
+    public Vec3 muzzle(boolean left) {
+        float facing = this.yBodyRot * Mth.DEG_TO_RAD;
+        double sin = Mth.sin(facing);
+        double cos = Mth.cos(facing);
+        double tall = drawnHeight();
+        double side = (left ? tall : -tall) * ARM_SIDE;
+        double ahead = tall * ARM_AHEAD;
+        return new Vec3(
+                getX() + cos * side - sin * ahead,
+                getY() + tall * ARM_HIGH,
+                getZ() + sin * side + cos * ahead);
+    }
+
     protected abstract int experience();
 
     /** The horn this machine sounds when it reaches the surface. */
@@ -317,6 +376,22 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         return false;
     }
 
+    /**
+     * How far a client keeps drawing this once the server has told it about it.
+     *
+     * <p>The distance a mob stops being drawn at is sixty-four times the size of its collision box,
+     * and this box is the legs. That put a walker's vanishing point near two hundred and seventy
+     * blocks, so the silhouette that is the whole point of the thing popped out of the sky while the
+     * ground it stood on was still being drawn, and worse with a mod that draws terrain for a
+     * kilometre. Measured off the drawn height instead, which is what a player is actually looking
+     * at, and still respecting the entity distance slider so anyone short of frames can turn it down.
+     */
+    @Override
+    public boolean shouldRenderAtSqrDistance(double distance) {
+        double reach = drawnHeight() * 64.0 * getViewScale();
+        return distance < reach * reach;
+    }
+
     @Override
     protected void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
@@ -362,9 +437,24 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
      * still has to see its target to shoot, and that test is in {@link #tickWeapon}.
      */
     private static final class HuntPlayerGoal extends NearestAttackableTargetGoal<Player> {
+        private final MachineEntity machine;
+
         private HuntPlayerGoal(MachineEntity machine) {
             super(machine, Player.class, 10, false, false, null);
+            this.machine = machine;
             this.targetConditions.ignoreLineOfSight();
+        }
+
+        /**
+         * The vanilla search box reaches out as far as the follow range and up only four blocks,
+         * which suits something that walks the ground and looks at what is in front of it. A machine
+         * fires from a hood ninety-six blocks in the air, so a player on a hilltop or on a roof was
+         * standing out of a box the machine was towering over.
+         */
+        @Override
+        protected AABB getTargetSearchArea(double range) {
+            double up = Math.max(4.0, this.machine.drawnHeight());
+            return this.machine.getBoundingBox().inflate(range, up, range);
         }
     }
 
@@ -512,6 +602,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return;
         }
         tickParts(server);
+        tickTicket(server);
 
         if (emerging()) {
             tickEmerge(server);
@@ -520,6 +611,34 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         tickEngine(server);
         tickStride(server);
         tickWeapon(server);
+    }
+
+    /**
+     * Keeps the ground under the machine loaded so it goes on walking with nobody near it.
+     *
+     * <p>A machine is a thing you watch cross a valley, and the vanilla rule is that an entity stops
+     * existing the moment its chunk leaves the player's view distance: one that set off towards a
+     * village a hundred blocks away used to freeze the second the player turned round, and be exactly
+     * where it was left an hour later. With a mod that draws terrain far past what the server sends,
+     * the same machine is now something the player can see standing still.
+     *
+     * <p>The ticket carries its own timeout, so nothing has to clean up after a machine that dies or
+     * despawns: it stops renewing and the ground goes back to being unloaded a couple of seconds
+     * later. Renewed on a period well inside that timeout rather than every tick, since the cost is
+     * in the renewal and not in the holding.
+     *
+     * <p>One level under entity ticking rather than at it, which costs the same single ticket and
+     * gets the eight chunks around it as well, since a level spreads outwards one rung per chunk. A
+     * ticket on the one chunk the machine stands in would be a trap: the tick that walks it over the
+     * border lands it somewhere nothing ticks, so it never reaches the tick that would have claimed
+     * the ground it just stepped on, and it stops for good on a chunk line.
+     */
+    private void tickTicket(ServerLevel server) {
+        if (this.tickCount % TICKET_PERIOD != 0) {
+            return;
+        }
+        int around = ChunkLevel.byStatus(FullChunkStatus.ENTITY_TICKING) - 1;
+        server.getChunkSource().addTicket(new Ticket(TicketType.ENDER_PEARL, around), chunkPosition());
     }
 
     // ---- the ground under it ----
@@ -704,6 +823,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         }
         this.setDeltaMovement(0.0, Math.min(0.0, this.getDeltaMovement().y), 0.0);
         this.setTarget(null);
+        holdFacing();
         MachineArrival.lightning(server, this, t);
 
         // The rumble is laid end to end for the whole rise, so the shake a player is already under
@@ -731,6 +851,34 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return;
         }
         this.entityData.set(DATA_PHASE_TICKS, t + 1);
+    }
+
+    /**
+     * Nails head, body and eyes to the way the machine came out of the ground.
+     *
+     * <p>The rise is a clip of a machine climbing straight up, so a body turning under it reads as the
+     * whole thing swivelling in its own hole. The look control keeps running whatever the phase is,
+     * and clearing the target is not enough to stop it: an idle machine still has a goal that turns
+     * its head. Written after the AI has had its tick rather than before, since the last value put
+     * there is the one the client is told about.
+     */
+    private void holdFacing() {
+        if (this.emergeFacing == null) {
+            this.emergeFacing = getYRot();
+        }
+        float facing = this.emergeFacing;
+        setYRot(facing);
+        this.yRotO = facing;
+        setYHeadRot(facing);
+        this.yHeadRotO = facing;
+        setYBodyRot(facing);
+        this.yBodyRotO = facing;
+        setXRot(0.0f);
+        this.xRotO = 0.0f;
+        getLookControl().setLookAt(
+                getX() - Mth.sin(facing * Mth.DEG_TO_RAD) * 16.0,
+                getEyeY(),
+                getZ() + Mth.cos(facing * Mth.DEG_TO_RAD) * 16.0);
     }
 
     /**
@@ -772,6 +920,29 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         return true;
     }
 
+    /**
+     * Whether the beam would reach the target, traced from the arm it leaves rather than from the
+     * feet, and with no ceiling on how far it may look.
+     *
+     * <p>The vanilla sight test refuses anything past a hundred and twenty-eight blocks outright,
+     * which is a number chosen for mobs whose eyes are at head height. A machine's arms stand ninety
+     * blocks up, so the line from one to someone a hundred and forty blocks away is already a hundred
+     * and sixty long and comes back blind: the big one could hunt a player it was never allowed to
+     * shoot at.
+     */
+    private boolean clearShot(LivingEntity target) {
+        ClipContext trace = new ClipContext(muzzle(true), target.getEyePosition(),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this);
+        return level().clip(trace).getType() == HitResult.Type.MISS;
+    }
+
+    /** Which of the shots this machine gathers at that distance, squared. */
+    protected HeatRayProjectile.Mode pickShot(double reachSqr) {
+        return reachSqr > HeatRayProjectile.CHARGE_FROM * HeatRayProjectile.CHARGE_FROM
+                ? HeatRayProjectile.Mode.CHARGED
+                : HeatRayProjectile.Mode.QUICK;
+    }
+
     private void tickWeapon(ServerLevel server) {
         if (this.shotCooldown > 0) {
             this.shotCooldown--;
@@ -783,8 +954,8 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
             return;
         }
         double reach = this.distanceToSqr(target);
-        if (reach > WEAPON_RANGE * WEAPON_RANGE || reach < WEAPON_MIN_RANGE * WEAPON_MIN_RANGE
-                || !this.hasLineOfSight(target)) {
+        if (reach > weaponRange() * weaponRange() || reach < WEAPON_MIN_RANGE * WEAPON_MIN_RANGE
+                || !clearShot(target)) {
             this.aimTicks = 0;
             return;
         }
@@ -794,9 +965,7 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
         // a charged shot into a snap one halfway through, and the warning they had been reading
         // would have been a lie.
         if (++this.aimTicks == 1) {
-            this.mode = reach > HeatRayProjectile.CHARGE_FROM * HeatRayProjectile.CHARGE_FROM
-                    ? HeatRayProjectile.Mode.CHARGED
-                    : HeatRayProjectile.Mode.QUICK;
+            this.mode = pickShot(reach);
             playSound(TripodDawnSounds.MACHINE_SHOOT, 8.0f,
                     this.mode == HeatRayProjectile.Mode.QUICK ? 1.4f : 0.85f);
         }

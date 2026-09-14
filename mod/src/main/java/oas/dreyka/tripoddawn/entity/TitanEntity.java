@@ -25,6 +25,21 @@ public class TitanEntity extends MachineEntity {
     /** A hundred blocks out of the walker the model was cut for. */
     public static final float SCALE = 2.6f;
 
+    /**
+     * How far it fires, against the eighty every other machine gets.
+     *
+     * <p>Its hood stands ninety-six blocks up and it walks slower than anything else on the field,
+     * so range is what it has instead of speed: it opens on a player who cannot yet make out what is
+     * shooting at them, and the answer is to run at it rather than away.
+     */
+    private static final double WEAPON = 140.0;
+
+    /** Far enough ahead of the weapon that it has picked its target well before it can fire on it. */
+    private static final double HUNT = 190.0;
+
+    /** Past this the volley comes out, and inside it the ordinary beam the rest of them carry. */
+    private static final double SIEGE_FROM = 60.0;
+
     public TitanEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
     }
@@ -36,7 +51,7 @@ public class TitanEntity extends MachineEntity {
                 .add(Attributes.MAX_HEALTH, 900.0)
                 .add(Attributes.ARMOR, 30.0)
                 .add(Attributes.ATTACK_DAMAGE, 70.0)
-                .add(Attributes.FOLLOW_RANGE, HUNT_RANGE)
+                .add(Attributes.FOLLOW_RANGE, HUNT)
                 .add(Attributes.STEP_HEIGHT, STEP_UP)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 10.0)
                 .add(Attributes.ATTACK_KNOCKBACK, 1.0)
@@ -58,6 +73,31 @@ public class TitanEntity extends MachineEntity {
     @Override
     public float modelHeight() {
         return 40.0f;
+    }
+
+    @Override
+    public double weaponRange() {
+        return WEAPON;
+    }
+
+    @Override
+    public double huntRange() {
+        return HUNT;
+    }
+
+    /**
+     * The volley past the range the others shoot at, the ordinary charged beam inside it.
+     *
+     * <p>Five beams at once is what it opens with and not what it fights with: a player who has run
+     * the distance down is close enough that a wall of fire thirty blocks wide would take the ground
+     * they are standing on with them, and the whole point of closing is that it gets worse for the
+     * machine and not for the player.
+     */
+    @Override
+    protected HeatRayProjectile.Mode pickShot(double reachSqr) {
+        return reachSqr > SIEGE_FROM * SIEGE_FROM
+                ? HeatRayProjectile.Mode.SIEGE
+                : super.pickShot(reachSqr);
     }
 
     @Override
