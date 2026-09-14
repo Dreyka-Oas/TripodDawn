@@ -123,16 +123,43 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     private static final int STAMP_SHAKE_TICKS = 30;
 
     /**
-     * How far a hittable slab may reach from its own position.
+     * The biggest a hittable slab is allowed to be, in blocks, on any axis.
      *
      * <p>The game finds an entity by the chunk section its position falls in, widened by four blocks,
-     * and never by the box it carries. One slab over a walker's thirty-two blocks of legs answers
-     * shots over the fifteen nearest its feet and lets the rest through; a slab fourteen wide answers
-     * from one side and not the other. Both numbers stay inside that reach with half a block to
-     * spare, whatever section boundary the machine happens to be standing across.
+     * and never by the box it carries. One slab over a walker's thirty blocks of legs answers shots
+     * over the fifteen nearest its feet and lets the rest through; a slab fourteen wide answers from
+     * one side and not the other. Seven is that reach spent on both sides of the position, with half
+     * a block to spare for whatever section boundary the machine is standing across.
      */
-    private static final float SLAB_HEIGHT = 3.5f;
-    static final float SLAB_WIDTH = 7.0f;
+    static final float SLAB_SIZE = 7.0f;
+
+    /**
+     * The columns of slabs a machine wears, each one a fraction of its drawn height.
+     *
+     * <p>Measured off the model. A leg is at its widest around a fifth of the height out from the
+     * axis, and the three of them stay that far apart until they meet under the hull; below that
+     * meeting point the middle of the machine is daylight, so no column stands there and a shot
+     * between the legs goes through.
+     */
+    private static final int LEG_COUNT = 3;
+    private static final float LEG_REACH = 0.185f;
+    private static final float LEG_TOP = 0.76f;
+    private static final float LEG_WIDTH = 0.175f;
+
+    /** Above this the legs are drawing in towards the hull, and the columns come in with them. */
+    private static final float LEG_GATHER = 0.58f;
+    private static final float TRUNK_BOTTOM = 0.45f;
+    private static final float TRUNK_WIDTH = 0.13f;
+    private static final float HULL_WIDTH = 0.175f;
+    private static final float HOOD_WIDTH = 0.15f;
+
+    /**
+     * Where the first leg column stands, in degrees off the way the machine faces.
+     *
+     * <p>Read off the model with the boxes drawn in game: the walker carries one leg behind it and
+     * two spread in front, not one in front and two behind.
+     */
+    private static final float LEG_OFFSET = 180.0f;
 
     /** How often a wreck lets go of a lungful while it burns. */
     private static final int VENT_PERIOD = 45;
@@ -573,23 +600,47 @@ public abstract class MachineEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * Cuts the three zones into slabs and puts them in the world.
+     * Stands the columns of slabs up and puts them in the world.
      *
-     * <p>The count comes from the machine's drawn height rather than being written down, because the
-     * same three zones have to cover a scout and a titan twice its size.
+     * <p>Everything is a fraction of the machine's drawn height rather than a number of blocks,
+     * because the same layout has to fit a scout and a titan twice its size.
      */
     private void buildParts(ServerLevel server) {
-        float tall = drawnHeight();
         List<MachinePart> built = new ArrayList<>();
-        for (MachinePart.Zone zone : MachinePart.Zone.values()) {
-            int slabs = Math.max(1, Mth.ceil(tall * zone.span() / SLAB_HEIGHT));
-            for (int i = 0; i < slabs; i++) {
-                MachinePart part = new MachinePart(this, zone, i, slabs);
-                server.addFreshEntity(part);
-                built.add(part);
-            }
+        for (int leg = 0; leg < LEG_COUNT; leg++) {
+            column(server, built, MachinePart.Zone.LEGS, 0.0f, LEG_TOP,
+                    LEG_REACH, LEG_OFFSET + 360.0f * leg / LEG_COUNT, LEG_WIDTH);
         }
+        column(server, built, MachinePart.Zone.LEGS, TRUNK_BOTTOM, MachinePart.Zone.HULL.bottom(),
+                0.0f, 0.0f, TRUNK_WIDTH);
+        column(server, built, MachinePart.Zone.HULL, MachinePart.Zone.HULL.bottom(),
+                MachinePart.Zone.HULL.top(), 0.0f, 0.0f, HULL_WIDTH);
+        column(server, built, MachinePart.Zone.HOOD, MachinePart.Zone.HOOD.bottom(),
+                MachinePart.Zone.HOOD.top(), 0.0f, 0.0f, HOOD_WIDTH);
         this.parts = built.toArray(new MachinePart[0]);
+    }
+
+    /** Cuts one column into slabs short enough to be found where they stand, and spawns them. */
+    private void column(ServerLevel server, List<MachinePart> built, MachinePart.Zone zone,
+                        float bottom, float top, float reach, float angle, float width) {
+        float span = top - bottom;
+        int slabs = Math.max(1, Mth.ceil(drawnHeight() * span / SLAB_SIZE));
+        for (int i = 0; i < slabs; i++) {
+            float low = bottom + span * i / slabs;
+            float high = bottom + span * (i + 1) / slabs;
+            MachinePart part = new MachinePart(this, zone, low, high,
+                    reach * gather((low + high) * 0.5f), angle, width);
+            server.addFreshEntity(part);
+            built.add(part);
+        }
+    }
+
+    /** How much of its full reach a leg column keeps at this height. */
+    private static float gather(float height) {
+        if (height <= LEG_GATHER) {
+            return 1.0f;
+        }
+        return Mth.clamp((LEG_TOP - height) / (LEG_TOP - LEG_GATHER), 0.3f, 1.0f);
     }
 
     private void dropParts() {

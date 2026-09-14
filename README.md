@@ -95,11 +95,15 @@ forty blocks of empty sky under every machine standing, every tick, and would we
 canopy tall enough to clear its hood. What a shot lands on is cut from the drawn height instead, so
 nothing you can see is out of reach.
 
-That cut is fourteen boxes on a walker, not three, and the reason is a rule of the game rather than a
-choice about aiming. Whatever box an entity carries, it is only found by a shot that passes within
-four blocks of the position it stands at, so one box thirty-two blocks tall answered arrows around
-the feet and let everything above them through, and one box fourteen blocks wide answered from the
-east and not from the west. Each box now stays inside that reach. Where the arrow lands still decides
+That cut is twenty boxes on a walker, not three, and their shape comes from a rule of the game rather
+than from a choice about aiming. Whatever box an entity carries, it is only found by a shot that
+passes within four blocks of the position it stands at, so one box thirty-two blocks tall answered
+arrows around the feet and let everything above them through, and one box fourteen blocks wide
+answered from the east and not from the west. Each box now stays inside that reach.
+
+So the machine wears four columns of them: one up its own axis for the hull and the hood, and one on
+each leg, out where the leg really is and turning with the body. A shot fired between two legs goes
+through, which is what a walker standing on daylight should do. Where the arrow lands still decides
 what it is worth: the legs take three fifths of it, the hull takes all of it, the hood takes two and
 a half times.
 

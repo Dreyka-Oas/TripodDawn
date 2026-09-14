@@ -11,28 +11,31 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * One hittable slab of a machine.
  *
- * <p>A walker is twenty-four blocks of thin legs holding a hood up, and one box around all of it is
- * wrong whichever width it is given: narrow enough to sit on the legs and an arrow aimed at the hood
- * flies past, wide enough to hold the hood and the thing has a four-block wall of nothing around its
- * shins. It is cut into three stacked boxes instead, and where a shot lands decides what it is worth.
+ * <p>A walker is three thin legs holding a hood forty blocks up, and one box around all of it is
+ * wrong whichever width it is given: narrow enough to sit on the hull and an arrow aimed at a leg
+ * flies past, wide enough to hold the splay and the machine answers shots fired at the daylight
+ * between its shins. It wears a column of slabs per leg and one up its own axis instead, and where a
+ * shot lands decides what it is worth.
  *
- * <p>Boxes stacked rather than placed around the model, because a slab centred on the machine needs
- * no rotating: it reads the same from every angle, which is what a player firing at a thing that
- * walks in circles actually needs.
+ * <p>The leg columns turn with the machine, since a leg is out on one side rather than all round.
+ * The axis columns do not, because nothing about them changes with the angle it is read from.
  *
- * <p>Three zones, but more than three slabs. The game finds an entity by the chunk section its
+ * <p>Columns, but many more slabs than columns. The game finds an entity by the chunk section its
  * position falls in, widened by four blocks, and never by the box it carries: a single slab covering
- * a walker's thirty-two blocks of legs answers arrows over the fifteen nearest its feet and lets
- * everything above that through. {@link MachineEntity} cuts each zone into slabs short enough to sit
- * inside that reach.
+ * a walker's thirty blocks of legs answers arrows over the fifteen nearest its feet and lets
+ * everything above that through. {@link MachineEntity} cuts each column into slabs short enough to
+ * sit inside that reach.
  */
 public class MachinePart extends Entity {
 
@@ -43,37 +46,40 @@ public class MachinePart extends Entity {
      * game hands it, and both answers are defensible; a gap there would be a shot that hits nothing.
      */
     public enum Zone {
-        /**
-         * Thin, far apart, and mostly air. Little of what is aimed at them is load bearing.
-         *
-         * <p>Four fifths of the machine and wide enough to hold the splay: a walker's feet are
-         * sixteen blocks apart on the ground, which is nearly five times the box it collides with.
-         */
-        LEGS(4.0f, 0.00f, 0.80f, 0.6f, 0.75f),
+        /** Thin, far apart, and mostly air. Little of what is aimed at them is load bearing. */
+        LEGS(0.00f, 0.76f, 0.6f, 0.75f),
 
         /** The hull. What a machine is, as far as damage is concerned. */
-        HULL(2.9f, 0.76f, 0.92f, 1.0f, 1.05f),
+        HULL(0.76f, 0.92f, 1.0f, 1.05f),
 
-        /** The hood, where the ray comes out and where the armour cannot be. */
-        HOOD(1.9f, 0.88f, 1.03f, 2.5f, 1.55f);
+        /**
+         * The hood, where the ray comes out and where the armour cannot be.
+         *
+         * <p>Past the top of the drawn height on purpose. That height is the number every other
+         * measurement here is taken against, and the model's own crown stands a tenth above it:
+         * measured in game against a column of blocks, a walker drawn at forty reaches forty-four.
+         */
+        HOOD(0.88f, 1.12f, 2.5f, 1.55f);
 
-        private final float width;
         private final float bottom;
         private final float top;
         private final float worth;
         private final float pitch;
 
-        Zone(float width, float bottom, float top, float worth, float pitch) {
-            this.width = width;
+        Zone(float bottom, float top, float worth, float pitch) {
             this.bottom = bottom;
             this.top = top;
             this.worth = worth;
             this.pitch = pitch;
         }
 
-        /** What fraction of the drawn height this zone covers. */
-        public float span() {
-            return this.top - this.bottom;
+        /** Where this zone starts and ends, as a fraction of the machine's drawn height. */
+        public float bottom() {
+            return this.bottom;
+        }
+
+        public float top() {
+            return this.top;
         }
 
         /** What a hit here is multiplied by before it reaches the machine. */
@@ -104,19 +110,32 @@ public class MachinePart extends Entity {
     private Zone zone = Zone.HULL;
     private float bottom;
     private float top = 1.0f;
+    private float reach;
+    private float angle;
+    private float width = 0.1f;
 
     public MachinePart(EntityType<? extends MachinePart> type, Level level) {
         super(type, level);
         this.noPhysics = true;
     }
 
-    /** One slab of {@code zone}, the {@code index}th of the {@code count} it was cut into. */
-    public MachinePart(MachineEntity owner, Zone zone, int index, int count) {
+    /**
+     * One slab of a column, every measurement a fraction of the machine's drawn height.
+     *
+     * <p>{@code reach} and {@code angle} are where the column stands around the machine's axis: a
+     * leg column sits out on the leg and turns with the machine, the hull column sits on the axis
+     * and ignores both.
+     */
+    public MachinePart(MachineEntity owner, Zone zone, float bottom, float top,
+                       float reach, float angle, float width) {
         this(TripodDawnEntities.MACHINE_PART, owner.level());
         this.owner = owner;
         this.zone = zone;
-        this.bottom = zone.bottom + zone.span() * index / count;
-        this.top = zone.bottom + zone.span() * (index + 1) / count;
+        this.bottom = bottom;
+        this.top = top;
+        this.reach = reach;
+        this.angle = angle;
+        this.width = width;
         follow();
     }
 
@@ -138,12 +157,12 @@ public class MachinePart extends Entity {
         // the first tick of a machine bigger than its registered size still reports the registered
         // one: a forty block titan would wear a walker's boxes for good.
         float tall = this.owner.drawnHeight();
-        // Capped for the same reason the slabs are stacked at all. The reach of a search around a
-        // slab's own position is four blocks, so a box wider than that on either side answers a shot
-        // coming from one direction and lets the same shot through from the other: the walker was
-        // hittable from the east and transparent from the west at the waist.
-        float width = Math.min(this.owner.getBbWidth() * this.zone.width, MachineEntity.SLAB_WIDTH);
-        float height = tall * (this.top - this.bottom);
+        // Capped for the same reason the columns are cut into slabs at all. A search reaches four
+        // blocks past the section holding the slab's own position, so a box reaching further than
+        // that answers a shot coming from one direction and lets the same shot through from the
+        // other: the walker was hittable from the east and transparent from the west at the waist.
+        float width = Math.min(tall * this.width, MachineEntity.SLAB_SIZE);
+        float height = Math.min(tall * (this.top - this.bottom), MachineEntity.SLAB_SIZE);
         // The synched-data callback that turns these two numbers into a box only fires on a client,
         // where the packet arrives, so the server has to rebuild the box itself.
         if (this.entityData.get(DATA_WIDTH) != width || this.entityData.get(DATA_HEIGHT) != height) {
@@ -151,9 +170,26 @@ public class MachinePart extends Entity {
             this.entityData.set(DATA_HEIGHT, height);
             refreshDimensions();
         }
-        this.setPos(this.owner.getX(),
-                this.owner.getY() + tall * this.bottom,
-                this.owner.getZ());
+        float yaw = (this.owner.yBodyRot + this.angle) * Mth.DEG_TO_RAD;
+        double out = tall * this.reach;
+        this.setPos(this.owner.getX() - Mth.sin(yaw) * out,
+                this.owner.getY() + tall * (this.bottom + this.top) * 0.5f,
+                this.owner.getZ() + Mth.cos(yaw) * out);
+    }
+
+    /**
+     * Hung around its position rather than standing on it.
+     *
+     * <p>The reach of a search is four blocks either way, so a box growing upwards out of its own
+     * position is hittable over three and a half and invisible above that, while the same reach
+     * spent on both sides buys seven. It halves the slabs a forty block walker has to carry.
+     */
+    @Override
+    protected AABB makeBoundingBox(Vec3 pos) {
+        double half = this.entityData.get(DATA_WIDTH) * 0.5;
+        double up = this.entityData.get(DATA_HEIGHT) * 0.5;
+        return new AABB(pos.x - half, pos.y - up, pos.z - half,
+                pos.x + half, pos.y + up, pos.z + half);
     }
 
     /**
@@ -211,7 +247,7 @@ public class MachinePart extends Entity {
         // Played from the slab and not from the machine, so the ring comes from the height the shot
         // landed at. On a forty block walker the difference between the shins and the hood is most
         // of the distance a sound has to travel to be placed at all.
-        server.playSound(null, this.getX(), this.getY() + this.getBbHeight() * 0.5, this.getZ(),
+        server.playSound(null, this.getX(), this.getY(), this.getZ(),
                 TripodDawnSounds.MACHINE_DEFLECT, this.owner.getSoundSource(), 2.5f, this.zone.pitch);
         return true;
     }
