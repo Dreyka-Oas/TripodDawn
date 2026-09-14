@@ -116,7 +116,7 @@ public final class TripodDawnEntities {
             MACHINE_PART_KEY,
             EntityType.Builder.<MachinePart>of(MachinePart::new, MobCategory.MISC)
                     .sized(1.0f, 1.0f)
-                    .clientTrackingRange(4)
+                    .clientTrackingRange(3)
                     .noSummon()
                     .noSave()
                     .fireImmune()
