@@ -199,9 +199,6 @@ def main():
     check_translated(en, fr,
                      {f"item.{NAMESPACE}.{path}" for path in java_ids("item/TripodDawnItems.java")},
                      "item")
-    check_translated(en, fr,
-                     {f"effect.{NAMESPACE}.{path}" for path in java_ids("effect/TripodDawnEffects.java")},
-                     "effect")
     check_sounds(en, fr)
     check_geckolib()
     check_particles()

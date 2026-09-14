@@ -1,10 +1,10 @@
 package oas.dreyka.tripoddawn;
 
 import oas.dreyka.tripoddawn.command.TripodDawnCommands;
-import oas.dreyka.tripoddawn.effect.TripodDawnEffects;
 import oas.dreyka.tripoddawn.entity.TripodDawnEntities;
 import oas.dreyka.tripoddawn.invasion.InvasionSpawner;
 import oas.dreyka.tripoddawn.item.TripodDawnItems;
+import oas.dreyka.tripoddawn.net.TripodDawnNetwork;
 import oas.dreyka.tripoddawn.particle.TripodDawnParticles;
 import oas.dreyka.tripoddawn.sound.TripodDawnSounds;
 
@@ -25,7 +25,7 @@ public class TripodDawnMod implements ModInitializer {
     public void onInitialize() {
         TripodDawnSounds.register();
         TripodDawnParticles.register();
-        TripodDawnEffects.register();
+        TripodDawnNetwork.register();
         TripodDawnEntities.register();
         TripodDawnItems.register();
         InvasionSpawner.register();

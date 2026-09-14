@@ -12,9 +12,13 @@ import oas.dreyka.tripoddawn.entity.TitanEntity;
 import oas.dreyka.tripoddawn.entity.TripodDawnEntities;
 import oas.dreyka.tripoddawn.entity.TripodEntity;
 import oas.dreyka.tripoddawn.entity.UberpodEntity;
+import oas.dreyka.tripoddawn.net.ShakePayload;
 import oas.dreyka.tripoddawn.particle.TripodDawnParticles;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.particle.v1.ParticleFactoryRegistry;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.client.renderer.entity.NoopRenderer;
@@ -76,5 +80,10 @@ public class TripodDawnClient implements ClientModInitializer {
                 new TripodDawnParticle.Provider(sprites, CORE));
         registry.register(TripodDawnParticles.BLAST, sprites ->
                 new TripodDawnParticle.Provider(sprites, IMPACT));
+
+        ClientPlayNetworking.registerGlobalReceiver(ShakePayload.TYPE,
+                (payload, context) -> CameraShake.start(payload.ticks()));
+        ClientTickEvents.END_CLIENT_TICK.register(client -> CameraShake.tick());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> CameraShake.clear());
     }
 }

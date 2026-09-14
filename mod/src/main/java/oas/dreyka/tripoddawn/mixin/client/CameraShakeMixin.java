@@ -32,7 +32,7 @@ public abstract class CameraShakeMixin {
     @Inject(method = "setup", at = @At("TAIL"))
     private void tripoddawn$shake(Level level, Entity viewer, boolean detached, boolean reversed,
                                   float partialTick, CallbackInfo info) {
-        if (!CameraShake.active(viewer)) {
+        if (!CameraShake.active()) {
             return;
         }
         setRotation(this.yRot + CameraShake.yaw(viewer, partialTick),

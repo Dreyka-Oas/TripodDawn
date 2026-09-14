@@ -1,12 +1,12 @@
 package oas.dreyka.tripoddawn.entity;
 
-import oas.dreyka.tripoddawn.effect.TripodDawnEffects;
+import oas.dreyka.tripoddawn.net.ShakePayload;
 import oas.dreyka.tripoddawn.particle.TripodDawnParticles;
 
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LightningBolt;
@@ -39,9 +39,9 @@ public final class MachineArrival {
         }
     }
 
-    /** The effect carries no icon and no particles: the camera moving is the whole of it. */
+    /** Nothing but the camera moves, so nothing but the client is told. */
     public static void shake(ServerPlayer player, int ticks) {
-        player.addEffect(new MobEffectInstance(TripodDawnEffects.EARTHQUAKE, ticks, 0, false, false, true));
+        ServerPlayNetworking.send(player, new ShakePayload(ticks));
     }
 
     /**
